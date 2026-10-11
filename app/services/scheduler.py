@@ -56,6 +56,15 @@ The four phases
 Balance heuristic: each phase balances its own counter (weekends, on-site days, total
 days) via "least loaded first" plus best-of-100 random restarts.
 
+Design decisions
+----------------
+* **Balance.** The algorithm balances three metrics: weekend pairs, on-site days and the
+  total number of duty days. The derived statistics columns "Semaine" (weekdays) and
+  "Week-end" (including weekday public holidays) are not balanced explicitly: they are an
+  arithmetic consequence of the main distribution, and adding constraints on them would
+  break the balance of the primary metrics. This matches the behaviour of the original
+  Excel/VBA/JS versions.
+
 Luxembourg public holidays
 --------------------------
 The JavaScript has no notion of public holidays; the port keeps it that way, which already
