@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
+
 """Shared pytest fixtures.
 
 Environment is set up *before* the app is imported so settings resolve to test values.

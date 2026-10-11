@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
+
 """Application settings loaded from environment variables (and `.env` in development)."""
 
 from functools import lru_cache
