@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "planificateur-gardes"
+version = "0.1.0"
+description = "Multi-tenant on-call duty scheduler for medical clinics."
+readme = "README.md"
+license = "AGPL-3.0-only"
+authors = [{ name = "Arrakis IT Services", email = "info@arrakis.lu" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.32,<1.0",
+    "sqlalchemy[asyncio]>=2.0.36,<3.0",
+    "asyncpg>=0.30,<1.0",
+    "alembic>=1.14,<2.0",
+    "pydantic>=2.9,<3.0",
+    "pydantic-settings>=2.6,<3.0",
+    "jinja2>=3.1,<4.0",
+    "python-multipart>=0.0.20,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9.0",
+    "pytest-asyncio>=0.24,<1.0",
+    "pytest-cov>=6.0,<7.0",
+    "httpx>=0.28,<1.0",
+    "ruff>=0.8,<1.0",
+    "mypy>=1.13,<2.0",
+    "pre-commit>=4.0,<5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ---------------------------------------------------------------------------
+# Ruff
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["alembic/versions", "*.md"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # bugbear
+    "UP",       # pyupgrade
+    "S",        # bandit
+    "SIM",      # simplify
+    "ASYNC",    # async pitfalls
+    "RUF",
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+# ---------------------------------------------------------------------------
+# Mypy (strict on app/, relaxed on tests and migrations)
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["^alembic/versions/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+# ---------------------------------------------------------------------------
+# Pytest + coverage
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+addopts = "--cov=app --cov-report=term-missing"
+markers = [
+    "db: tests that need a reachable PostgreSQL (skipped if unavailable)",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_empty = true

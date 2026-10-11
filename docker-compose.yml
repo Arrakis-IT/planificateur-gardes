@@ -1,0 +1,53 @@
+# Local development: app (hot reload) + PostgreSQL + MailHog.
+#   docker compose up --build
+#   App:     http://localhost:8000
+#   MailHog: http://localhost:8025
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dev
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: planificateur_gardes
+      POSTGRES_PASSWORD: planificateur_gardes
+      POSTGRES_DB: planificateur_gardes
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U planificateur_gardes -d planificateur_gardes"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    platform: linux/amd64  # upstream publishes amd64 only (emulated on Apple Silicon)
+    ports:
+      - "127.0.0.1:8025:8025"
+
+volumes:
+  pgdata:

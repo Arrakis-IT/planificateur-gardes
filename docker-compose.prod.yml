@@ -1,0 +1,41 @@
+# Production: app only. PostgreSQL is the shared instance (PrivateForm) reached
+# through an external Docker network; TLS and routing are handled by the shared
+# reverse proxy. Deploy in /opt/planificateur-gardes/ with a production .env.
+
+services:
+  app:
+    image: ghcr.io/arrakis-it/planificateur-gardes:${APP_VERSION:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      # Only trust X-Forwarded-* headers from the reverse proxy network.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-*}
+    networks:
+      - db
+      - proxy
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  # Names to be set to the existing networks on the host (user-configured).
+  db:
+    external: true
+    name: ${DB_NETWORK:-privateform_db}
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-reverse-proxy}
