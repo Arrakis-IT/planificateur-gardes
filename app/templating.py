@@ -15,6 +15,7 @@ from starlette.responses import Response
 
 from app.config import get_settings
 from app.middleware.csrf import CSRF_FORM_FIELD, csrf_token_for
+from app.services import calendar as cal
 from app.services.security import derive_key
 from app.services.turnstile import FORM_FIELD as TURNSTILE_FIELD
 
@@ -39,7 +40,14 @@ def csrf_input(request: Request) -> Markup:
 
 
 templates.env.globals["csrf_input"] = csrf_input
+templates.env.globals["csrf_token"] = csrf_token_for
 templates.env.globals["turnstile_field"] = TURNSTILE_FIELD
+templates.env.globals["WEEKDAYS_SHORT_FR"] = cal.WEEKDAYS_SHORT_FR
+templates.env.globals["month_weeks"] = cal.month_weeks
+templates.env.filters["long_date"] = cal.long_date
+templates.env.filters["short_date"] = cal.short_date
+templates.env.filters["month_label"] = cal.month_label
+templates.env.filters["weekday_fr"] = lambda d: cal.WEEKDAYS_FR[d.weekday()]
 
 
 # --- Flash messages (one-shot, signed cookie; never put secrets in them) -----------------

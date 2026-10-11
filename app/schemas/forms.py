@@ -8,7 +8,8 @@ Business rules (password policy, uniqueness…) are checked in the routes so the
 be re-rendered with a French message.
 """
 
-from typing import Annotated
+from datetime import date as date_type
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
@@ -69,3 +70,30 @@ class UserCreateForm(_Form):
     password: Password
     clinic_id: Annotated[str, StringConstraints(strip_whitespace=True, max_length=64)] = ""
     is_superadmin: bool = False
+
+
+SemesterKey = Annotated[str, StringConstraints(max_length=7)]
+
+
+class DayForm(_Form):
+    """Toggle one day (vacation or on-site)."""
+
+    date: date_type
+    semestre: SemesterKey | None = None
+
+
+class RangeForm(_Form):
+    """Add / remove a range of vacation days."""
+
+    start: date_type
+    end: date_type
+    action: Literal["add", "remove"] = "add"
+    semestre: SemesterKey | None = None
+
+
+class GenerateForm(_Form):
+    """POST /generer."""
+
+    period_from: date_type
+    period_to: date_type
+    confirm_overwrite: bool = False

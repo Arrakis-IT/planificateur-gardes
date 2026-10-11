@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as m %}
+{% block title %}Aujourd'hui{% endblock %}
+{% block content %}
+<div class="duty-cards">
+  {% for label, day in cards %}
+  <section class="duty-card{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}">
+    <div class="duty-label">{{ label }}</div>
+    <div class="duty-date">{{ day.day|long_date }}</div>
+    {% if day.doctor %}
+      <div class="duty-doctor">
+        <span class="duty-code" style="--doctor-color: {{ day.doctor.color }}">{{ day.doctor.doctor_code }}</span>
+        <span class="duty-name">{{ day.doctor.full_name }}</span>
+      </div>
+    {% elif day.unassigned %}
+      <div class="duty-doctor xx"><span class="duty-code xx">XX</span><span class="duty-name">Aucun médecin disponible</span></div>
+    {% else %}
+      <div class="duty-doctor none"><span class="duty-name">Aucune planification pour ce jour</span></div>
+    {% endif %}
+    <div class="badges">{{ m.day_badges(day) }}</div>
+  </section>
+  {% endfor %}
+</div>
+<p class="muted center"><a href="/semaine">Voir la semaine</a> · <a href="/mois">Voir le mois</a></p>
+{% endblock %}

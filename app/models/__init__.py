@@ -7,7 +7,20 @@ from app.models.audit_log import AuditLog
 from app.models.base import Base
 from app.models.clinic import Clinic
 from app.models.password_reset_token import PasswordResetToken
+from app.models.scheduling import Assignment, CustomHoliday, Generation, Holiday, OnsiteDay
 from app.models.session import UserSession
 from app.models.user import User
 
-__all__ = ["AuditLog", "Base", "Clinic", "PasswordResetToken", "User", "UserSession"]
+__all__ = [
+    "Assignment",
+    "AuditLog",
+    "Base",
+    "Clinic",
+    "CustomHoliday",
+    "Generation",
+    "Holiday",
+    "OnsiteDay",
+    "PasswordResetToken",
+    "User",
+    "UserSession",
+]

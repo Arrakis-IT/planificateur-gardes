@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as m %}
+{% block title %}Résultats{% endblock %}
+{% block content %}
+{% if not generation %}
+<section class="panel">
+  <h1>Résultats</h1>
+  <p class="empty-state">Aucune planification générée. <a href="/generer">Générer une planification</a>.</p>
+</section>
+{% else %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Planification du {{ generation.period_from|short_date }} au {{ generation.period_to|short_date }}</h1>
+  </div>
+  <p class="muted">
+    Générée{% if generated_by %} par {{ generated_by.full_name }}{% endif %}
+    le {{ generation.generated_at.strftime('%d/%m/%Y à %H:%M') }} (UTC).
+  </p>
+
+  <h2>Statistiques</h2>
+  {% set s = stats %}
+  <div class="table-scroll">
+  <table class="table stats-table">
+    <thead>
+      <tr>
+        <th>Médecin</th>
+        <th class="num">Semaine</th><th class="num">%</th>
+        <th class="num">Week-end</th><th class="num">%</th>
+        <th class="num">Sur place</th><th class="num">%</th>
+        <th class="num">Congés</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in s.doctors %}
+        {% set user = users[row.code] %}
+        <tr>
+          <td>{{ m.doctor_chip(user) }} {{ user.full_name }}</td>
+          <td class="num">{{ row.week }}</td>
+          <td class="num">{{ '%.1f%%'|format(row.week / s.total_week * 100) if s.total_week else '–' }}</td>
+          <td class="num">{{ row.weekend }}</td>
+          <td class="num">{{ '%.1f%%'|format(row.weekend / s.total_weekend * 100) if s.total_weekend else '–' }}</td>
+          <td class="num">{{ row.onsite }}</td>
+          <td class="num">{{ '%.1f%%'|format(row.onsite / s.total_onsite * 100) if s.total_onsite else '–' }}</td>
+          <td class="num">{{ row.vacation_days }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">Les jours fériés en semaine sont comptés dans la colonne « Week-end ».
+    {% if s.unassigned %}<strong class="err">{{ s.unassigned }} jour(s) sans médecin disponible (XX).</strong>{% endif %}</p>
+</section>
+
+<section class="panel">
+  <div class="panel-header">
+    <h2>Vue mensuelle</h2>
+  </div>
+  <div class="filter-bar">
+    <span class="filter-label">Filtrer :</span>
+    <a class="filter-chip{{ ' active' if not filter_code }}" href="/resultats">Tous</a>
+    {% for code, user in users.items() %}
+      <a class="filter-chip{{ ' active' if filter_code == code }}" href="/resultats?medecin={{ code }}">{{ user.full_name }}<span class="chip-code">{{ code }}</span></a>
+    {% endfor %}
+  </div>
+  {% include "partials/_legend.html" %}
+  <div class="results-months-grid">
+    {% for first in months %}
+      <div class="month-block">
+        <div class="month-title capitalize">{{ first|month_label }}</div>
+        {{ m.month_grid(first, month_weeks(first), days, today, filter_code) }}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

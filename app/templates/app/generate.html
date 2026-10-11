@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Générer{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Générer la planification</h1>
+  {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/generer" class="stack">
+    {{ csrf_input(request) }}
+    <div class="date-range"
+         hx-get="/generer/medecins" hx-include="this" hx-target="#generate-doctors" hx-swap="outerHTML"
+         hx-trigger="change">
+      <div>
+        <label for="period_from">Date de début</label>
+        <input type="date" id="period_from" name="period_from" value="{{ period_from.isoformat() }}" required>
+      </div>
+      <div>
+        <label for="period_to">Date de fin</label>
+        <input type="date" id="period_to" name="period_to" value="{{ period_to.isoformat() }}" required>
+      </div>
+    </div>
+
+    {% include "partials/_generate_doctors.html" %}
+
+    {% if active %}
+      <div class="alert alert-warn">
+        Une planification est active ({{ active.period_from|short_date }} – {{ active.period_to|short_date }}).
+        La générer à nouveau l'archivera.
+        <div class="checkbox">
+          <input type="checkbox" id="confirm_overwrite" name="confirm_overwrite" value="true">
+          <label for="confirm_overwrite">Remplacer la planification active</label>
+        </div>
+      </div>
+    {% endif %}
+
+    <div>
+      <button type="submit" class="primary">Générer les affectations</button>
+    </div>
+  </form>
+  <p class="muted">Avant de générer, vérifiez les <a href="/conges">congés</a> de chacun et les <a href="/sur-place">jours sur place</a>.</p>
+</section>
+{% endblock %}

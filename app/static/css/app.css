@@ -1,5 +1,19 @@
 /* Planificateur des gardes — base styles (palette ported from the standalone version). */
 
+/* Self-hosted fonts (SIL OFL 1.1, see /static/fonts/README.md). Latin subset. */
+@font-face {
+  font-family: 'Inter'; font-style: normal; font-weight: 400 700; font-display: swap;
+  src: url('../fonts/inter-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fraunces'; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url('../fonts/fraunces-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono'; font-style: normal; font-weight: 500 600; font-display: swap;
+  src: url('../fonts/jetbrains-mono-latin.woff2') format('woff2');
+}
+
 :root {
   --bg: #f6f5f1;
   --surface: #ffffff;
@@ -175,10 +189,146 @@ details[open] { display: block; margin-top: 6px; }
 }
 .doctor-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 
+.nav a.active { color: var(--accent); font-weight: 600; }
+/* French: only the first letter is uppercase ("janvier – juin 2027" → "Janvier – juin 2027"). */
+.capitalize { display: inline-block; }
+.capitalize::first-letter, .duty-date::first-letter, .week-dayname::first-letter { text-transform: uppercase; }
+.center { text-align: center; }
+.small { font-size: 12px; }
+.err { color: var(--err); }
+.num { text-align: right; font-family: var(--font-mono); }
+.table th.num { font-family: var(--font-body); }
+.table-scroll { overflow-x: auto; }
+.empty-state { color: var(--ink-faint); font-style: italic; padding: 12px; text-align: center; }
+
+.pager { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.pager a { text-decoration: none; }
+
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge.onsite-badge { background: var(--onsite-soft); color: #7a5c00; border: 1px solid var(--onsite); }
+.badge.holiday-badge { background: var(--holiday); color: var(--ink); }
+.code.xx { background: var(--err); }
+
+/* --- Dashboard ------------------------------------------------------------ */
+.duty-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
+.duty-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 24px; display: flex; flex-direction: column; gap: 12px;
+}
+.duty-card.weekend { background: var(--weekend); }
+.duty-card.onsite-cell { border-color: var(--onsite); box-shadow: inset 4px 0 0 var(--onsite); }
+.duty-label {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); font-weight: 600;
+}
+.duty-date { font-family: var(--font-heading); font-size: 22px; }
+.duty-doctor { display: flex; align-items: center; gap: 14px; }
+.duty-code {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 64px;
+  padding: 0 10px; border-radius: 6px; font-family: var(--font-mono); font-size: 24px; font-weight: 600;
+  color: #fff; background: var(--doctor-color, var(--accent));
+}
+.duty-code.xx { background: var(--err); }
+.duty-name { font-size: 18px; font-weight: 500; }
+.duty-doctor.none .duty-name, .duty-doctor.xx .duty-name { color: var(--ink-soft); font-size: 15px; }
+
+/* --- Week list ------------------------------------------------------------- */
+.week-list { list-style: none; margin: 0; padding: 0; }
+.week-row {
+  display: grid; grid-template-columns: 110px 1fr auto; gap: 12px; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid var(--line);
+}
+.week-row.weekend { background: var(--weekend); }
+.week-row.onsite-cell { box-shadow: inset 4px 0 0 var(--onsite); }
+.week-row.today { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 3px; }
+.week-date { display: flex; flex-direction: column; line-height: 1.2; }
+.week-dayname { color: var(--ink-soft); font-size: 12px; }
+.week-daynum { font-family: var(--font-heading); font-size: 20px; }
+.week-doctor { display: flex; align-items: center; gap: 8px; }
+
+/* --- Month grid (planning) ------------------------------------------------- */
+.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-header {
+  text-align: center; font-size: 11px; color: var(--ink-faint); padding: 4px 0;
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.month-cell {
+  min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 3px; padding: 2px; background: var(--surface);
+}
+.month-cell.weekend { background: var(--weekend); }
+.month-cell.onsite-cell { background: var(--onsite-soft); border-color: var(--onsite); }
+.month-cell.xx-cell { background: var(--err-soft); border-color: var(--err); }
+.month-cell.empty { background: transparent; border-color: transparent; }
+.month-cell.today { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cell-date { font-weight: 600; font-size: 11px; line-height: 1; }
+.cell-doctor {
+  font-family: var(--font-mono); font-weight: 600; font-size: 11px; line-height: 1; margin-top: 4px;
+  padding: 3px 5px; border-radius: 3px; color: #fff; background: var(--doctor-color, var(--accent));
+}
+.cell-doctor.xx { background: transparent; color: var(--err); }
+.cell-doctor.none { background: transparent; color: var(--ink-faint); }
+.month-cell.filtered-out .cell-doctor { visibility: hidden; }
+.month-cell.filtered-out.onsite-cell, .month-cell.filtered-out.xx-cell { background: var(--surface); border-color: var(--line); }
+
+.results-months-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.month-block { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px; }
+.month-title { font-family: var(--font-heading); font-size: 16px; margin-bottom: 8px; color: var(--accent); }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); margin-bottom: 16px; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 2px; border: 1px solid var(--line-strong); }
+.swatch-weekend { background: var(--weekend); }
+.swatch-onsite { background: var(--onsite-soft); border-color: var(--onsite); }
+.swatch-xx { background: var(--err-soft); border-color: var(--err); }
+
+.filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-label { font-size: 12px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.05em; }
+.filter-chip {
+  padding: 6px 12px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 16px;
+  font-size: 13px; color: var(--ink); text-decoration: none;
+}
+.filter-chip:hover { border-color: var(--accent); }
+.filter-chip.active { background: var(--accent); color: var(--surface); border-color: var(--accent); font-weight: 600; }
+.chip-code { font-family: var(--font-mono); font-size: 11px; opacity: 0.7; margin-left: 4px; }
+.stats-table { font-size: 13px; }
+
+/* --- Mini calendars (vacations, on-site) — from the standalone app ----------- */
+.multi-month { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.mini-month { border: 1px solid var(--line); border-radius: 3px; padding: 10px; background: var(--surface); }
+.mini-month-title {
+  font-size: 12px; font-weight: 600; text-transform: capitalize; margin-bottom: 6px;
+  color: var(--accent); text-align: center;
+}
+.calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.mini-month .cal-header { font-size: 9px; padding: 2px 0; }
+.cal-day {
+  height: 26px; display: flex; align-items: center; justify-content: center; font-size: 11px;
+  border: 1px solid transparent; border-radius: 3px; padding: 0; user-select: none;
+  font-family: inherit; background: transparent; color: var(--ink);
+}
+button.cal-day { cursor: pointer; transition: all 0.1s; }
+.cal-day.in-range { background: var(--surface); border-color: var(--line); }
+.cal-day.in-range:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.cal-day.out-range { color: var(--ink-faint); }
+.cal-day.weekend.in-range { background: var(--weekend); }
+.cal-day.holiday { background: var(--holiday) !important; border-color: var(--ink-soft); }
+.cal-day.onsite { background: var(--onsite) !important; border-color: var(--onsite); font-weight: 600; }
+.holiday-summary {
+  margin-top: 12px; font-size: 12px; color: var(--ink-soft); padding: 8px 12px;
+  background: var(--accent-soft); border-radius: 3px;
+}
+.date-range { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
 @media (max-width: 768px) {
   .app { padding: 16px; }
-  .table thead { display: none; }
-  .table tr { display: block; border-bottom: 1px solid var(--line-strong); padding: 8px 0; }
-  .table td { display: block; border: none; padding: 4px 0; }
+  .duty-cards { grid-template-columns: 1fr; gap: 12px; }
+  .duty-code { min-width: 56px; height: 56px; font-size: 20px; }
+  .week-row { grid-template-columns: 70px 1fr; }
+  .week-row .badges { grid-column: 2; }
+  .month-cell { min-height: 44px; }
+  .date-range { grid-template-columns: 1fr; }
+  .table:not(.stats-table) thead { display: none; }
+  .table:not(.stats-table) tr { display: block; border-bottom: 1px solid var(--line-strong); padding: 8px 0; }
+  .table:not(.stats-table) td { display: block; border: none; padding: 4px 0; }
   .table td.actions { white-space: normal; }
 }

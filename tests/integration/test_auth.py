@@ -49,7 +49,7 @@ async def test_login_success_sets_hardened_cookie_and_audits(client, db, make_cl
 
     home = await client.get("/")
     assert home.status_code == 200
-    assert user.full_name in home.text
+    assert clinic.name in home.text and "Déconnexion" in home.text
     await db.refresh(user)
     assert user.last_login_at is not None
 

@@ -1,0 +1,22 @@
+<div id="generate-doctors">
+  {% if period_days %}
+    <p class="muted">{{ period_days }} jours · {{ onsite_count }} jour{{ 's' if onsite_count > 1 }} sur place.</p>
+  {% else %}
+    <p class="alert alert-error">La date de début doit précéder la date de fin.</p>
+  {% endif %}
+  {% if doctors %}
+  <table class="table">
+    <thead><tr><th>Médecin</th><th class="num">Jours de congés</th></tr></thead>
+    <tbody>
+      {% for doctor, vacation_days in doctors %}
+      <tr>
+        <td><span class="code" style="--doctor-color: {{ doctor.color }}">{{ doctor.doctor_code }}</span> {{ doctor.full_name }}</td>
+        <td class="num">{{ vacation_days }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="alert alert-error">Aucun médecin actif dans le cabinet.</p>
+  {% endif %}
+</div>

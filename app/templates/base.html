@@ -6,9 +6,10 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>{% block title %}Planificateur des gardes{% endblock %} — Arrakis IT</title>
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+  <script src="{{ url_for('static', path='js/htmx.min.js') }}" defer></script>
   {% block head %}{% endblock %}
 </head>
-<body>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'>
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -22,7 +23,14 @@
           <a href="/admin/clinics">Cabinets</a>
           <a href="/admin/users">Utilisateurs</a>
         {% else %}
-          <a href="/">Accueil</a>
+          {% set path = request.url.path %}
+          <a href="/" class="{{ 'active' if path == '/' }}">Aujourd'hui</a>
+          <a href="/semaine" class="{{ 'active' if path == '/semaine' }}">Semaine</a>
+          <a href="/mois" class="{{ 'active' if path == '/mois' }}">Mois</a>
+          <a href="/conges" class="{{ 'active' if path == '/conges' }}">Congés</a>
+          <a href="/sur-place" class="{{ 'active' if path == '/sur-place' }}">Sur place</a>
+          <a href="/generer" class="{{ 'active' if path == '/generer' }}">Générer</a>
+          <a href="/resultats" class="{{ 'active' if path == '/resultats' }}">Résultats</a>
         {% endif %}
         <a href="/parametres">Paramètres</a>
         <form method="post" action="/logout" class="inline">

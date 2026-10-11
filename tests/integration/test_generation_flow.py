@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
+
+"""/generer → /resultats."""
+
+from datetime import date, timedelta
+
+import pytest
+from sqlalchemy import func, select
+
+from app.models import Assignment, AuditLog, Generation, Holiday, OnsiteDay
+from tests.conftest import login, post_form
+
+pytestmark = pytest.mark.db
+
+PERIOD = {"period_from": "2027-05-01", "period_to": "2027-05-31"}
+
+
+@pytest.fixture
+async def clinic_team(client, db, make_clinic, make_user):
+    clinic = await make_clinic()
+    nr = await make_user("nr@ex.lu", "Nicolas Rousseau", clinic=clinic)
+    dt = await make_user("dt@ex.lu", "Dominique Thill", clinic=clinic)
+    mc = await make_user("mc@ex.lu", "Marie Curie", clinic=clinic)
+    await make_user("old@ex.lu", "Ancien Médecin", clinic=clinic, active=False)
+    for offset in range(5):
+        db.add(
+            Holiday(user_id=nr.id, clinic_id=clinic.id, date=date(2027, 5, 10) + timedelta(offset))
+        )
+    db.add(OnsiteDay(clinic_id=clinic.id, date=date(2027, 5, 12)))
+    await db.commit()
+    await login(client, "nr@ex.lu")
+    return clinic, nr, dt, mc
+
+
+async def test_generate_page_defaults_and_doctor_counts(client, db, clinic_team, monkeypatch):
+    from app.services import calendar as cal
+
+    monkeypatch.setattr(cal, "today_local", lambda now=None: date(2026, 10, 11))
+    page = await client.get("/generer")
+    assert page.status_code == 200
+    assert 'value="2027-01-01"' in page.text and 'value="2027-06-30"' in page.text
+    assert "Ancien Médecin" not in page.text  # inactive users don't take part
+    fragment = await client.get("/generer/medecins", params=PERIOD)
+    assert "31 jours" in fragment.text and "1 jour sur place" in fragment.text
+    assert '<td class="num">5</td>' in fragment.text  # NR's vacation days in May
+
+
+async def test_generate_creates_active_generation(client, db, clinic_team):
+    _, nr, *_ = clinic_team
+    response = await post_form(client, "/generer", PERIOD)
+    assert response.status_code == 303 and response.headers["location"] == "/resultats"
+    generation = await db.scalar(select(Generation))
+    assert generation.is_active and generation.generated_by == nr.id
+    assignments = (await db.scalars(select(Assignment))).all()
+    assert len(assignments) == 31
+    on_vacation = {date(2027, 5, 10) + timedelta(i) for i in range(5)}
+    assert not [a for a in assignments if a.user_id == nr.id and a.date in on_vacation]
+    entry = await db.scalar(select(AuditLog).where(AuditLog.action == "generation_created"))
+    assert entry.meta["doctors"] == 3 and entry.meta["period_to"] == "2027-05-31"
+
+    results = await client.get("/resultats")
+    assert results.status_code == 200
+    assert "Planification du 01/05/2027 au 31/05/2027" in results.text
+    assert results.text.count('class="cell-doctor"') == 31
+    assert "Généré" in results.text and "Nicolas Rousseau" in results.text
+    filtered = await client.get("/resultats?medecin=NR")
+    assert 'filter-chip active" href="/resultats?medecin=NR"' in filtered.text
+    assert "filtered-out" in filtered.text
+
+
+async def test_regenerate_requires_confirmation_and_archives(client, db, clinic_team):
+    await post_form(client, "/generer", PERIOD)
+    refused = await post_form(client, "/generer", PERIOD)
+    assert refused.status_code == 400 and "Confirmez" in refused.text
+    assert await db.scalar(select(func.count(Generation.id))) == 1
+
+    ok = await post_form(client, "/generer", PERIOD | {"confirm_overwrite": "true"})
+    assert ok.status_code == 303
+    generations = (await db.scalars(select(Generation).order_by(Generation.generated_at))).all()
+    assert [g.is_active for g in generations] == [False, True]
+    assert generations[0].archived_at is not None
+    assert await db.scalar(select(func.count(Assignment.id))) == 62  # archived rows kept
+
+
+@pytest.mark.parametrize(
+    ("period", "message"),
+    [
+        ({"period_from": "2027-05-31", "period_to": "2027-05-01"}, "précéder"),
+        ({"period_from": "2027-05-01", "period_to": "2027-05-01"}, "précéder"),
+        ({"period_from": "2027-01-01", "period_to": "2028-12-31"}, "dépasser"),
+    ],
+)
+async def test_invalid_periods(client, db, clinic_team, period, message):
+    response = await post_form(client, "/generer", period)
+    assert response.status_code == 400 and message in response.text
+    assert await db.scalar(select(func.count(Generation.id))) == 0
+
+
+async def test_unassigned_days_stored_as_null(client, db, clinic_team):
+    clinic, _, dt, mc = clinic_team
+    for user in (dt, mc):
+        db.add(Holiday(user_id=user.id, clinic_id=clinic.id, date=date(2027, 5, 11)))
+    await db.commit()  # 11 May: NR already away → nobody available
+    await post_form(client, "/generer", PERIOD)
+    xx = await db.scalar(select(Assignment).where(Assignment.date == date(2027, 5, 11)))
+    assert xx.user_id is None
+    results = await client.get("/resultats")
+    assert "1 jour(s) sans médecin disponible" in results.text
+
+
+async def test_results_without_generation(client, db, clinic_team):
+    page = await client.get("/resultats")
+    assert page.status_code == 200 and "Aucune planification générée" in page.text

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as m %}
+{% block title %}{{ first|month_label }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1 class="capitalize">{{ first|month_label }}</h1>
+    <nav class="pager">
+      <a href="/mois?mois={{ prev.strftime('%Y-%m') }}">‹ mois précédent</a>
+      <a href="/mois">ce mois-ci</a>
+      <a href="/mois?mois={{ next.strftime('%Y-%m') }}">mois suivant ›</a>
+    </nav>
+  </div>
+  {% include "partials/_legend.html" %}
+  {{ m.month_grid(first, month_weeks(first), days, today) }}
+</section>
+{% endblock %}

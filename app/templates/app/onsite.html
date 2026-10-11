@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Sur place{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Jours sur place</h1>
+    {% with base='/sur-place' %}{% include "partials/_semester_nav.html" %}{% endwith %}
+  </div>
+  <p class="muted">Jours où le cabinet exige une présence physique. Modifiables par tous les médecins du cabinet.</p>
+  {% include "partials/_onsite_calendar.html" %}
+</section>
+{% endblock %}

@@ -2,16 +2,11 @@
 
 Items to resolve in later phases. Move them to GitHub issues once the repository is published.
 
-## Phase 4 — Cross-clinic isolation tests for new resources
+## Phase 6 — Isolation of assignment edits
 
-When the holiday, on-site day, generation and assignment routes exist, add them to
-`CROSS_CLINIC_CASES` in `tests/integration/test_isolation.py` (one case per HTTP verb):
-a clinic-A user must get 403/404 on every clinic-B resource, and the resource must be unchanged.
-
-## Phase 4 — Remove the dev scheduler preview
-
-Delete `app/routers/dev.py` (`/_dev/schedule-preview`) and its mount in `app/main.py` once
-`/generer` works end to end.
+Draft edits will address assignments (by date or id). Resolve them through the clinic's
+active generation (`generation.clinic_id == scope`), never by bare id, and add the new routes
+to `CROSS_CLINIC_CASES` in `tests/integration/test_isolation.py`.
 
 ## Phase 9 — CSP
 
@@ -19,3 +14,9 @@ Delete `app/routers/dev.py` (`/_dev/schedule-preview`) and its mount in `app/mai
 `style="--doctor-color: …"` attribute.
 Clean alternative: generate per-doctor CSS classes in a stylesheet regenerated when doctors
 are added or edited. Decide in Phase 9.
+
+Also for the CSP:
+- HTMX injects a `<style>` element for request indicators unless disabled with
+  `<meta name="htmx-config" content='{"includeIndicatorStyles": false}'>`; disable it rather
+  than allowing inline styles.
+- Turnstile needs `script-src` and `frame-src https://challenges.cloudflare.com`.

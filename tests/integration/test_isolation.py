@@ -56,7 +56,7 @@ async def test_home_page_only_shows_own_clinic(client, db, two_clinics):
     await login(client, "alice@ex.lu")
     page = await client.get("/")
     assert page.status_code == 200
-    assert "Alice Martin" in page.text
+    assert "Alpha" in page.text  # own clinic name in the header
     assert "Bob Weber" not in page.text
     assert "Beta" not in page.text
 
@@ -106,3 +106,77 @@ async def test_clinic_user_cannot_reach_other_clinic_resources(
     assert bob_after.password_hash == before_hash
     assert clinic_after is not None and clinic_after.active
     assert clinic_after.name == before_name
+
+
+# --- Scheduling data (phase 4) ---------------------------------------------------------
+# Vacation / on-site / generation routes address days, never ids: every read and write is
+# scoped to the requester's clinic (and, for vacations, to the requester). These tests
+# check that clinic B data never shows up for clinic A and that A's writes never touch B.
+
+
+@pytest.fixture
+async def clinic_b_data(db, two_clinics):
+    from datetime import date
+
+    from app.models import Holiday, OnsiteDay
+    from app.repositories import scheduling as repo
+
+    _, clinic_b, _, bob = two_clinics
+    db.add(Holiday(user_id=bob.id, clinic_id=clinic_b.id, date=date(2027, 5, 10)))
+    db.add(OnsiteDay(clinic_id=clinic_b.id, date=date(2027, 5, 12)))
+    await repo.create_generation(
+        db,
+        clinic_b.id,
+        date(2027, 5, 1),
+        date(2027, 5, 31),
+        bob.id,
+        {date(2027, 5, d): bob.id for d in range(1, 32)},
+    )
+    await db.commit()
+    return two_clinics
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/",
+        "/semaine?date=2027-05-12",
+        "/mois?mois=2027-05",
+        "/resultats",
+        "/conges?semestre=2027-1",
+        "/sur-place?semestre=2027-1",
+        "/generer/medecins?period_from=2027-05-01&period_to=2027-05-31",
+    ],
+)
+async def test_get_never_shows_other_clinic_scheduling(client, db, clinic_b_data, url):
+    await login(client, "alice@ex.lu")
+    page = await client.get(url)
+    assert page.status_code == 200
+    assert "Bob Weber" not in page.text and ">BW<" not in page.text
+    assert "cal-day in-range onsite" not in page.text  # B's on-site day
+    assert "cal-day in-range holiday" not in page.text  # B's vacation day
+    assert 'class="cell-doctor"' not in page.text  # B's generation
+
+
+async def test_writes_stay_in_own_clinic(client, db, clinic_b_data):
+    from sqlalchemy import select
+
+    from app.models import Generation, Holiday, OnsiteDay
+
+    clinic_a, clinic_b, alice, bob = clinic_b_data
+    await login(client, "alice@ex.lu")
+    # Same dates as B's rows: A's toggles must create A rows, not remove B's.
+    await client.post("/sur-place/toggle", data=with_csrf({"date": "2027-05-12"}))
+    await client.post("/conges/toggle", data=with_csrf({"date": "2027-05-10"}))
+    await client.post(
+        "/generer", data=with_csrf({"period_from": "2027-05-01", "period_to": "2027-05-31"})
+    )
+
+    db.expunge_all()
+    onsite = (await db.execute(select(OnsiteDay.clinic_id))).scalars().all()
+    assert sorted(map(str, onsite)) == sorted([str(clinic_a.id), str(clinic_b.id)])
+    vacations = (await db.execute(select(Holiday.user_id))).scalars().all()
+    assert sorted(map(str, vacations)) == sorted([str(alice.id), str(bob.id)])
+    generations = (await db.scalars(select(Generation))).all()
+    by_clinic = {g.clinic_id: g.is_active for g in generations}
+    assert by_clinic == {clinic_a.id: True, clinic_b.id: True}  # B's generation not archived

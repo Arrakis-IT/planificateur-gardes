@@ -1,0 +1,62 @@
+{# Shared rendering macros. #}
+
+{% macro doctor_chip(user) -%}
+  <span class="code" style="--doctor-color: {{ user.color }}" title="{{ user.full_name }}">{{ user.doctor_code }}</span>
+{%- endmacro %}
+
+{% macro day_badges(day) -%}
+  {% if day.holiday %}<span class="badge holiday-badge" title="{{ day.holiday }}">Férié · {{ day.holiday }}</span>
+  {% elif day.weekend %}<span class="badge">Week-end</span>{% endif %}
+  {% if day.onsite %}<span class="badge onsite-badge">Sur place</span>{% endif %}
+{%- endmacro %}
+
+{# Month grid of the planning (dashboard month view and results). #}
+{% macro month_grid(first, weeks, days, today, filter_code=None) -%}
+<div class="month-grid">
+  {% for name in WEEKDAYS_SHORT_FR %}<div class="cal-header">{{ name }}</div>{% endfor %}
+  {% for week in weeks %}
+    {% for d in week %}
+      {% set day = days.get(d) if d else None %}
+      {% if not day %}
+        <div class="month-cell empty"></div>
+      {% else %}
+        {% set filtered_out = filter_code and (not day.doctor or day.doctor.doctor_code != filter_code) %}
+        <div class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}"
+             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}">
+          <div class="cell-date">{{ d.day }}</div>
+          {% if day.doctor %}
+            <div class="cell-doctor" style="--doctor-color: {{ day.doctor.color }}">{{ day.doctor.doctor_code }}</div>
+          {% elif day.unassigned %}
+            <div class="cell-doctor xx">XX</div>
+          {% else %}
+            <div class="cell-doctor none">—</div>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{# Clickable mini-month for /conges and /sur-place (buttons submit the enclosing form). #}
+{% macro mini_month(first, period, marked, public_holidays, marked_class) -%}
+<div class="mini-month">
+  <div class="mini-month-title">{{ first|month_label }}</div>
+  <div class="calendar">
+    {% for name in ['L','M','Me','J','V','S','D'] %}<div class="cal-header">{{ name }}</div>{% endfor %}
+    {% for week in month_weeks(first) %}
+      {% for d in week %}
+        {% if d and d in period %}
+          {% set weekend = d.weekday() >= 5 or d in public_holidays %}
+          <button type="submit" name="date" value="{{ d.isoformat() }}"
+                  class="cal-day in-range{{ ' weekend' if weekend }}{{ ' ' ~ marked_class if d in marked }}"
+                  title="{{ d|long_date }}{{ ' — ' ~ public_holidays[d] if d in public_holidays }}"
+                  aria-pressed="{{ 'true' if d in marked else 'false' }}">{{ d.day }}</button>
+        {% else %}
+          <div class="cal-day out-range">{{ d.day if d else '' }}</div>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+</div>
+{%- endmacro %}

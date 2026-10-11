@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% import "partials/_macros.html" as m %}
+{% block title %}Semaine{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Semaine du {{ days[0].day.day }} {{ days[0].day|month_label }}</h1>
+    <nav class="pager">
+      <a href="/semaine?date={{ prev.isoformat() }}">‹ semaine précédente</a>
+      {% if not this_week %}<a href="/semaine">aujourd'hui</a>{% endif %}
+      <a href="/semaine?date={{ next.isoformat() }}">semaine suivante ›</a>
+    </nav>
+  </div>
+  <ol class="week-list">
+    {% for day in days %}
+    <li class="week-row{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' today' if day.day == today }}">
+      <div class="week-date">
+        <span class="week-dayname">{{ day.day|weekday_fr }}</span>
+        <span class="week-daynum">{{ day.day.day }}</span>
+      </div>
+      <div class="week-doctor">
+        {% if day.doctor %}{{ m.doctor_chip(day.doctor) }} <span>{{ day.doctor.full_name }}</span>
+        {% elif day.unassigned %}<span class="code xx">XX</span> <span class="muted">Aucun médecin disponible</span>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </div>
+      <div class="badges">{{ m.day_badges(day) }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}
