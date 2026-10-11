@@ -52,8 +52,7 @@ def test_dev_secret_key_rejected_in_production(monkeypatch):
     with pytest.raises(ValidationError) as exc_info:
         Settings()
     message = str(exc_info.value)
-    assert "APP_SECRET_KEY must be a strong secret in production" in message
-    assert 'not starting with "dev-only-"' in message
+    assert 'APP_SECRET_KEY must not start with "dev-only-" in production' in message
     assert "secrets.token_urlsafe(64)" in message
 
 

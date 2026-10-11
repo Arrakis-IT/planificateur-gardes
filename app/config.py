@@ -77,14 +77,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _reject_weak_secret_in_production(self) -> Self:
-        """Refuse to start in production with the dev placeholder or a short secret key."""
+        """Refuse to start in production with the dev placeholder secret key.
+
+        Minimum length is enforced for every environment by the field constraint.
+        """
         secret = self.app_secret_key.get_secret_value()
-        if self.is_production and (
-            secret.startswith(DEV_SECRET_KEY_PREFIX) or len(secret) < SECRET_KEY_MIN_LENGTH
-        ):
+        if self.is_production and secret.startswith(DEV_SECRET_KEY_PREFIX):
             raise ValueError(
-                "APP_SECRET_KEY must be a strong secret in production "
-                '(≥32 chars, not starting with "dev-only-"). '
+                'APP_SECRET_KEY must not start with "dev-only-" in production. '
                 'Generate one with: python3 -c "import secrets; print(secrets.token_urlsafe(64))"'
             )
         return self
