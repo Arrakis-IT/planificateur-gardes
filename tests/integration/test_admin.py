@@ -3,6 +3,8 @@
 
 """Superadmin panel: access control, clinics and users management."""
 
+import re
+
 import pytest
 from sqlalchemy import func, select
 
@@ -227,3 +229,46 @@ async def test_users_list_filters(admin_client, db, make_clinic, make_user):
     assert "Bob Beta" in inactive.text and "Alice Alpha" not in inactive.text
     garbage = await admin_client.get("/admin/users?clinic=not-a-uuid")
     assert garbage.status_code == 200
+
+
+async def test_admin_created_and_reset_users_must_change_password(
+    admin_client, app, db, make_clinic
+):
+    """Both admin-issued passwords force a change at next login (like the bootstrap admin)."""
+    from httpx import ASGITransport, AsyncClient
+
+    from tests.conftest import TEST_CSRF_COOKIE
+
+    clinic = await make_clinic()
+    await post_form(
+        admin_client,
+        "/admin/users",
+        {
+            "email": "new@ex.lu",
+            "full_name": "Nouveau Médecin",
+            "password": "initial-password-1",
+            "clinic_id": str(clinic.id),
+        },
+    )
+    user = await db.scalar(select(User).where(User.email == "new@ex.lu"))
+    assert user.must_change_password is True
+
+    async def first_login(password: str) -> str:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as doctor:
+            doctor.cookies.set("csrftoken", TEST_CSRF_COOKIE)
+            response = await login(doctor, "new@ex.lu", password)
+            assert response.headers["location"] == "/parametres"
+            blocked = await doctor.get("/")
+            return blocked.headers["location"]
+
+    assert await first_login("initial-password-1") == "/parametres"
+
+    # Simulate the doctor having changed it, then the admin resets it again.
+    user.must_change_password = False
+    await db.commit()
+    page = await post_form(admin_client, f"/admin/users/{user.id}/reset-password")
+    temporary = re.search(r'<code class="secret">([^<]+)</code>', page.text).group(1)
+    await db.refresh(user)
+    assert user.must_change_password is True
+    assert await first_login(temporary) == "/parametres"
