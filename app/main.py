@@ -24,6 +24,7 @@ from app.middleware.rate_limit import limiter
 from app.repositories.scope import NoClinicScopeError
 from app.routers import account, admin, auth, health
 from app.routers import app as app_router
+from app.routers.dev import build_dev_app
 from app.services.bootstrap import ensure_initial_superadmin
 from app.templating import render
 from app.utils.logging import configure_logging
@@ -103,6 +104,9 @@ def create_app() -> FastAPI:
     _register_error_handlers(app)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    if settings.app_env == "development":
+        # Dev-only tools (scheduler preview); never mounted in production or tests.
+        app.mount("/_dev", build_dev_app())
     app.include_router(health.router)
     app.include_router(auth.router)
     app.include_router(account.router)

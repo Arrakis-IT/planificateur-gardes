@@ -8,6 +8,11 @@ When the holiday, on-site day, generation and assignment routes exist, add them 
 `CROSS_CLINIC_CASES` in `tests/integration/test_isolation.py` (one case per HTTP verb):
 a clinic-A user must get 403/404 on every clinic-B resource, and the resource must be unchanged.
 
+## Phase 4 — Remove the dev scheduler preview
+
+Delete `app/routers/dev.py` (`/_dev/schedule-preview`) and its mount in `app/main.py` once
+`/generer` works end to end.
+
 ## Phase 9 — CSP
 
 `style-src-attr 'unsafe-inline'` is required while doctor colors are applied with an inline

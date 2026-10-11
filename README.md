@@ -19,6 +19,20 @@ docker compose up --build
 `.env.example` ships with values ready for development, so `cp .env.example .env && docker compose up` works out of the box.
 For production, regenerate `APP_SECRET_KEY` (the command is included as a comment in `.env.example`); the app refuses to start in production with the dev key.
 
+### Scheduler preview (development only)
+
+With `APP_ENV=development`, `POST /_dev/schedule-preview` runs the scheduler on a JSON input
+and returns assignments and statistics (see `app/routers/dev.py` for the format). It is not
+mounted in production or tests and will be removed once the generation UI exists.
+
+```bash
+curl -s localhost:8000/_dev/schedule-preview -H 'content-type: application/json' -d '{
+  "period_from": "2027-01-01", "period_to": "2027-01-31", "seed": 1,
+  "doctors": [{"code": "NR"}, {"code": "DT"}, {"code": "MC"}],
+  "holidays": {"2027-01-18": ["MC"]}, "onsite": ["2027-01-12"]
+}'
+```
+
 Run checks inside the dev container:
 
 ```bash
