@@ -14,7 +14,7 @@ docker compose up --build
 ```
 
 - App: http://localhost:8000 (healthcheck: http://localhost:8000/healthz)
-- MailHog: http://localhost:8025
+- Mailpit: http://localhost:8025
 
 Run checks inside the dev container:
 

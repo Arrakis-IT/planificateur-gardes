@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     brevo_sender_email: str = "noreply@arrakis.lu"
     brevo_sender_name: str = "Planificateur des gardes"
 
-    # Dev email override (MailHog)
+    # Dev email override (Mailpit)
     mail_dev_host: str | None = None
     mail_dev_port: int | None = None
 

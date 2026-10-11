@@ -1,7 +1,7 @@
-# Local development: app (hot reload) + PostgreSQL + MailHog.
+# Local development: app (hot reload) + PostgreSQL + Mailpit.
 #   docker compose up --build
 #   App:     http://localhost:8000
-#   MailHog: http://localhost:8025
+#   Mailpit: http://localhost:8025
 
 services:
   app:
@@ -17,7 +17,7 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      mailhog:
+      mailpit:
         condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status == 200 else 1)"]
@@ -43,11 +43,11 @@ services:
       timeout: 3s
       retries: 10
 
-  mailhog:
-    image: mailhog/mailhog:v1.0.1
-    platform: linux/amd64  # upstream publishes amd64 only (emulated on Apple Silicon)
+  mailpit:
+    image: axllent/mailpit:v1.31.5
     ports:
-      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"  # SMTP
+      - "127.0.0.1:8025:8025"  # Web UI
 
 volumes:
   pgdata:
