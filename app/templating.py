@@ -46,6 +46,7 @@ templates.env.globals["WEEKDAYS_SHORT_FR"] = cal.WEEKDAYS_SHORT_FR
 templates.env.globals["month_weeks"] = cal.month_weeks
 templates.env.filters["long_date"] = cal.long_date
 templates.env.filters["short_date"] = cal.short_date
+templates.env.filters["local_datetime"] = cal.local_datetime
 templates.env.filters["month_label"] = cal.month_label
 templates.env.filters["weekday_fr"] = lambda d: cal.WEEKDAYS_FR[d.weekday()]
 

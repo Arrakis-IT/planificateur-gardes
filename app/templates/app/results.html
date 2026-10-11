@@ -14,7 +14,7 @@
   </div>
   <p class="muted">
     Générée{% if generated_by %} par {{ generated_by.full_name }}{% endif %}
-    le {{ generation.generated_at.strftime('%d/%m/%Y à %H:%M') }} (UTC).
+    le {{ generation.generated_at|local_datetime }}.
   </p>
 
   <h2>Statistiques</h2>

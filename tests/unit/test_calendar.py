@@ -68,6 +68,10 @@ def test_french_labels():
     assert cal.short_date(date(2027, 5, 7)) == "07/05/2027"
 
 
+def test_local_datetime_uses_luxembourg_time():
+    assert cal.local_datetime(datetime(2026, 10, 11, 18, 30, tzinfo=UTC)) == "11/10/2026 à 20:30"
+
+
 def test_today_is_luxembourg_local_date():
     # 23:30 UTC on 31 Dec is already 1 Jan in Luxembourg (UTC+1 in winter).
     assert cal.today_local(datetime(2026, 12, 31, 23, 30, tzinfo=UTC)) == date(2027, 1, 1)
