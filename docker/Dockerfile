@@ -2,18 +2,23 @@
 # =============================================================================
 # Planificateur de Gardes
 #   target "dev"  : app + dev tooling (pytest, ruff, mypy), used by docker-compose.yml
-#   target "prod" : minimal runtime image, published to ghcr.io
+#   target "prod" : minimal runtime image (no Poetry), published to ghcr.io
+#
+# Dependencies are installed by Poetry from poetry.lock into /opt/venv
+# (outside /app so the dev bind mount does not hide it).
 # =============================================================================
 
 ARG PYTHON_VERSION=3.12
 
-# --- Base: runtime system libraries ------------------------------------------
-FROM python:${PYTHON_VERSION}-slim AS base
+# --- Runtime: system libraries shared by every stage ---------------------------
+FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}"
 
 # WeasyPrint (PDF) needs Pango + HarfBuzz; fonts for PDF fallback.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,26 +29,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system app && useradd --system --gid app --home /app app
 WORKDIR /app
 
-# Extract dependency lists from pyproject.toml so the layer is cached
-# independently of application code.
-COPY pyproject.toml ./
-RUN python - <<'EOF'
-import tomllib
-project = tomllib.load(open("pyproject.toml", "rb"))["project"]
-open("/tmp/requirements.txt", "w").write("\n".join(project["dependencies"]))
-open("/tmp/requirements-dev.txt", "w").write("\n".join(project["optional-dependencies"]["dev"]))
-EOF
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /tmp/requirements.txt
+# --- Builder: Poetry + main dependencies -------------------------------------
+FROM runtime AS builder
 
-RUN groupadd --system app && useradd --system --gid app --home /app app
+ARG POETRY_VERSION=2.5.1
+# Poetry lives in its own venv; the app venv (/opt/venv) is the active one,
+# so with virtualenvs.create=false Poetry installs into it.
+ENV POETRY_HOME=/opt/poetry \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_CACHE_DIR=/root/.cache/pypoetry
+RUN python -m venv "$POETRY_HOME" \
+    && "$POETRY_HOME/bin/pip" install "poetry==${POETRY_VERSION}" \
+    && ln -s "$POETRY_HOME/bin/poetry" /usr/local/bin/poetry \
+    && python -m venv "$VIRTUAL_ENV"
+
+COPY pyproject.toml poetry.lock ./
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --no-root --only main
 
 # --- Dev ----------------------------------------------------------------------
-FROM base AS dev
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /tmp/requirements-dev.txt
+FROM builder AS dev
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --no-root --with dev
 COPY . .
 RUN chmod +x docker/entrypoint.sh
 USER app
@@ -52,9 +63,10 @@ ENTRYPOINT ["docker/entrypoint.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # --- Prod ---------------------------------------------------------------------
-FROM base AS prod
+FROM runtime AS prod
 ARG APP_RELEASE=dev
 ENV APP_RELEASE=${APP_RELEASE}
+COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app app/ ./app/
 COPY --chown=app:app alembic/ ./alembic/
 COPY --chown=app:app alembic.ini ./

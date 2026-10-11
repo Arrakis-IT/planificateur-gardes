@@ -25,6 +25,16 @@ docker compose exec app mypy app
 docker compose exec -e TEST_DATABASE_URL=postgresql+asyncpg://planificateur_gardes:planificateur_gardes@db:5432/planificateur_gardes_test app pytest
 ```
 
+Dependencies are managed with [Poetry](https://python-poetry.org/) 2.x (`poetry.lock` is committed).
+To work outside Docker:
+
+```bash
+poetry install --no-root --with dev
+poetry run pytest
+```
+
+After changing dependencies in `pyproject.toml`, regenerate the lock with `poetry lock` and commit it.
+
 ## License
 
 [AGPL-3.0](LICENSE) © Arrakis IT Services
