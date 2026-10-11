@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Nouveau mot de passe{% endblock %}
+{% block content %}
+<section class="panel narrow">
+  <h1>Nouveau mot de passe</h1>
+  {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/reset/{{ token }}" class="stack">
+    {{ csrf_input(request) }}
+    <div>
+      <label for="password">Nouveau mot de passe (12 caractères minimum)</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" minlength="12" required autofocus>
+    </div>
+    <div>
+      <label for="password_confirm">Confirmation</label>
+      <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" minlength="12" required>
+    </div>
+    <button type="submit" class="primary">Enregistrer</button>
+  </form>
+</section>
+{% endblock %}

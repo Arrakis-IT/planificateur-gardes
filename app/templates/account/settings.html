@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Paramètres{% endblock %}
+{% block content %}
+<section class="panel narrow">
+  <h1>Paramètres</h1>
+  {% if forced %}
+    <div class="alert alert-warn" role="alert">Vous devez choisir un nouveau mot de passe avant de continuer.</div>
+  {% endif %}
+  <h2>Changer le mot de passe</h2>
+  {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/parametres/mot-de-passe" class="stack">
+    {{ csrf_input(request) }}
+    <div>
+      <label for="current_password">Mot de passe actuel</label>
+      <input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
+    </div>
+    <div>
+      <label for="password">Nouveau mot de passe (12 caractères minimum)</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" minlength="12" required>
+    </div>
+    <div>
+      <label for="password_confirm">Confirmation</label>
+      <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" minlength="12" required>
+    </div>
+    <button type="submit" class="primary">Enregistrer</button>
+  </form>
+</section>
+{% endblock %}

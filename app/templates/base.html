@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>{% block title %}Planificateur des gardes{% endblock %} — Arrakis IT</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <a href="/" class="brand-link">Planificateur des gardes</a>
+        {% if auth and auth.user.clinic %}<span class="subtitle">{{ auth.user.clinic.name }}</span>{% endif %}
+        {% if auth and auth.user.is_superadmin %}<span class="subtitle">Administration</span>{% endif %}
+      </div>
+      {% if auth %}
+      <nav class="nav">
+        {% if auth.user.is_superadmin %}
+          <a href="/admin/clinics">Cabinets</a>
+          <a href="/admin/users">Utilisateurs</a>
+        {% else %}
+          <a href="/">Accueil</a>
+        {% endif %}
+        <a href="/parametres">Paramètres</a>
+        <form method="post" action="/logout" class="inline">
+          {{ csrf_input(request) }}
+          <button type="submit" class="link">Déconnexion</button>
+        </form>
+      </nav>
+      {% endif %}
+    </header>
+
+    {% if flash %}
+      <div class="alert alert-{{ flash.level }}" role="status">{{ flash.message }}</div>
+    {% endif %}
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

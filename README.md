@@ -38,6 +38,16 @@ poetry run pytest
 
 After changing dependencies in `pyproject.toml`, regenerate the lock with `poetry lock` and commit it.
 
+## Security design (summary)
+
+- **Passwords**: argon2id (`argon2-cffi`), minimum 12 characters.
+- **Sessions**: signed cookie (`itsdangerous`) holding a random token; only its SHA-256 hash is
+  stored in the `session` table, so sessions can be revoked (logout, password change/reset,
+  deactivation). Details in `app/services/auth.py`.
+- **CSRF**: signed double-submit cookie on every POST (`app/middleware/csrf.py`).
+- **Brute force**: 5 login attempts/min per IP, account locked 15 min after 10 failures,
+  password reset limited to 3/hour per account; Cloudflare Turnstile on `/login` and `/reset`.
+
 ## License
 
 [AGPL-3.0](LICENSE) © Arrakis IT Services

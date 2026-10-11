@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Cabinets{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Cabinets</h1>
+  </div>
+
+  <form method="post" action="/admin/clinics" class="row">
+    {{ csrf_input(request) }}
+    <div class="grow">
+      <label for="name">Nouveau cabinet</label>
+      <input type="text" id="name" name="name" maxlength="200" placeholder="Nom du cabinet" required>
+    </div>
+    <button type="submit" class="primary">Créer</button>
+  </form>
+
+  <table class="table">
+    <thead>
+      <tr><th>Nom</th><th>Identifiant</th><th>Utilisateurs</th><th>Statut</th><th class="actions">Actions</th></tr>
+    </thead>
+    <tbody>
+    {% for clinic, user_count in rows %}
+      <tr class="{{ '' if clinic.active else 'inactive' }}">
+        <td>{{ clinic.name }}</td>
+        <td class="mono">{{ clinic.slug }}</td>
+        <td><a href="/admin/users?clinic={{ clinic.id }}">{{ user_count }}</a></td>
+        <td>{% if clinic.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}</td>
+        <td class="actions">
+          <details>
+            <summary>Renommer</summary>
+            <form method="post" action="/admin/clinics/{{ clinic.id }}/rename" class="row">
+              {{ csrf_input(request) }}
+              <input type="text" name="name" value="{{ clinic.name }}" maxlength="200" required aria-label="Nouveau nom">
+              <button type="submit">OK</button>
+            </form>
+          </details>
+          <form method="post" action="/admin/clinics/{{ clinic.id }}/toggle-active" class="inline">
+            {{ csrf_input(request) }}
+            <button type="submit">{{ 'Désactiver' if clinic.active else 'Réactiver' }}</button>
+          </form>
+          <details>
+            <summary class="danger">Supprimer</summary>
+            <form method="post" action="/admin/clinics/{{ clinic.id }}/delete" class="inline">
+              {{ csrf_input(request) }}
+              <button type="submit" class="danger">Confirmer la suppression</button>
+            </form>
+          </details>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">Aucun cabinet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

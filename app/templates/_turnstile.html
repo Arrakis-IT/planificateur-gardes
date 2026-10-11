@@ -1,0 +1,4 @@
+{# Cloudflare Turnstile widget (only when enabled). #}
+{% if turnstile_enabled and turnstile_site_key %}
+  <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-language="fr"></div>
+{% endif %}

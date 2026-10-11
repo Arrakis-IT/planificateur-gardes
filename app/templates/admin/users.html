@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Utilisateurs{% endblock %}
+{% block content %}
+{% if temporary_password %}
+  <div class="alert alert-warn" role="alert">
+    Mot de passe temporaire de <strong>{{ temporary_password.user.full_name }}</strong> :
+    <code class="secret">{{ temporary_password.password }}</code><br>
+    Communiquez-le de façon sûre ; il ne sera plus affiché. L'utilisateur devra le changer à sa prochaine connexion.
+  </div>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-header">
+    <h1>Utilisateurs</h1>
+    <form method="get" action="/admin/users" class="row">
+      <select name="clinic" aria-label="Cabinet">
+        <option value="">Tous les cabinets</option>
+        <option value="superadmins" {{ 'selected' if clinic_filter == 'superadmins' }}>Superadministrateurs</option>
+        {% for c in clinics %}
+          <option value="{{ c.id }}" {{ 'selected' if clinic_filter == c.id|string }}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="status" aria-label="Statut">
+        <option value="">Tous</option>
+        <option value="active" {{ 'selected' if status_filter == 'active' }}>Actifs</option>
+        <option value="inactive" {{ 'selected' if status_filter == 'inactive' }}>Inactifs</option>
+      </select>
+      <button type="submit">Filtrer</button>
+    </form>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr><th>Code</th><th>Nom</th><th>E-mail</th><th>Cabinet</th><th>Dernière connexion</th><th>Statut</th><th class="actions">Actions</th></tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr class="{{ '' if u.active else 'inactive' }}">
+        <td><span class="code" style="--doctor-color: {{ u.color }}">{{ u.doctor_code }}</span></td>
+        <td>{{ u.full_name }}</td>
+        <td>{{ u.email }}</td>
+        <td>{% if u.is_superadmin %}<span class="badge">Superadmin</span>{% else %}{{ u.clinic.name if u.clinic else '' }}{% endif %}</td>
+        <td class="mono">{{ u.last_login_at.strftime('%d/%m/%Y %H:%M') if u.last_login_at else '—' }}</td>
+        <td>
+          {% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}
+          {% if u.must_change_password %}<span class="badge warn">MDP à changer</span>{% endif %}
+        </td>
+        <td class="actions">
+          <form method="post" action="/admin/users/{{ u.id }}/reset-password" class="inline">
+            {{ csrf_input(request) }}
+            <button type="submit">Réinitialiser le MDP</button>
+          </form>
+          {% if u.id != auth.user.id %}
+          <form method="post" action="/admin/users/{{ u.id }}/toggle-active" class="inline">
+            {{ csrf_input(request) }}
+            <button type="submit">{{ 'Désactiver' if u.active else 'Réactiver' }}</button>
+          </form>
+          <details>
+            <summary class="danger">Supprimer</summary>
+            <form method="post" action="/admin/users/{{ u.id }}/delete" class="inline">
+              {{ csrf_input(request) }}
+              <button type="submit" class="danger">Confirmer la suppression</button>
+            </form>
+          </details>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="muted">Aucun utilisateur.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>Nouvel utilisateur</h2>
+  {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/admin/users" class="grid-form">
+    {{ csrf_input(request) }}
+    <div>
+      <label for="full_name">Nom complet</label>
+      <input type="text" id="full_name" name="full_name" value="{{ form.full_name or '' }}" maxlength="200" required>
+    </div>
+    <div>
+      <label for="email">Adresse e-mail</label>
+      <input type="email" id="email" name="email" value="{{ form.email or '' }}" required>
+    </div>
+    <div>
+      <label for="password">Mot de passe initial (12 caractères minimum)</label>
+      <input type="text" id="password" name="password" minlength="12" autocomplete="off" required>
+    </div>
+    <div>
+      <label for="clinic_id">Cabinet</label>
+      <select id="clinic_id" name="clinic_id">
+        <option value="">— Aucun (superadministrateur) —</option>
+        {% for c in clinics if c.active %}
+          <option value="{{ c.id }}" {{ 'selected' if form.clinic_id == c.id|string }}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="checkbox">
+      <input type="checkbox" id="is_superadmin" name="is_superadmin" value="true" {{ 'checked' if form.is_superadmin }}>
+      <label for="is_superadmin">Superadministrateur</label>
+    </div>
+    <div>
+      <button type="submit" class="primary">Créer l'utilisateur</button>
+    </div>
+  </form>
+  <p class="muted">Le code médecin et la couleur sont attribués automatiquement. L'utilisateur devra changer son mot de passe à la première connexion.</p>
+</section>
+{% endblock %}

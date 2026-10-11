@@ -42,13 +42,13 @@ def get_sessionmaker() -> async_sessionmaker[AsyncSession]:
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency yielding a session, rolled back on error."""
+    """FastAPI dependency yielding a session.
+
+    Uncommitted work is discarded when the session closes. No explicit rollback on
+    error: it would expire loaded objects that error pages still render.
+    """
     async with get_sessionmaker()() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
+        yield session
 
 
 async def check_database() -> bool:

@@ -63,9 +63,17 @@ class Settings(BaseSettings):
     rate_limit_login_per_minute: int = 5
     rate_limit_reset_per_hour: int = 3
 
+    # Account lock: N failed logins within the window lock the account for the same duration.
+    login_lock_threshold: int = 10
+    login_lock_minutes: int = 15
+
     # Session cookie
     session_cookie_secure: bool = True
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    session_max_age_days: int = 14
+
+    # Password reset
+    password_reset_ttl_minutes: int = 60
 
     # Logging
     log_level: str = "INFO"

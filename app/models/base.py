@@ -1,10 +1,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Declarative base shared by all SQLAlchemy models."""
+"""Declarative base and mixins shared by all SQLAlchemy models."""
 
-from sqlalchemy import MetaData
-from sqlalchemy.orm import DeclarativeBase
+import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, MetaData, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Deterministic constraint names so Alembic autogenerate produces stable migrations.
 NAMING_CONVENTION = {
@@ -20,3 +23,20 @@ class Base(DeclarativeBase):
     """Base class for all ORM models."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+class UUIDPrimaryKeyMixin:
+    """UUID primary key generated application-side."""
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+
+
+class TimestampMixin:
+    """`created_at` / `updated_at` maintained by the database."""
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
