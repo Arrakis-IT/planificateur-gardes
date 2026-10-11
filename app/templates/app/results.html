@@ -11,6 +11,7 @@
 <section class="panel">
   <div class="panel-header">
     <h1>Planification du {{ generation.period_from|short_date }} au {{ generation.period_to|short_date }}</h1>
+    <a class="button" href="/resultats/pdf">Télécharger le PDF</a>
   </div>
   <p class="muted">
     Générée{% if generated_by %} par {{ generated_by.full_name }}{% endif %}

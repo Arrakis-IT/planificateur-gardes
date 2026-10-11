@@ -1,0 +1,10 @@
+Bonjour,
+
+{{ actor_name }} vient de {{ verb }} la planification des gardes pour la période du {{ period_from }} au {{ period_to }}.
+
+Le document PDF est en pièce jointe.
+
+Vous pouvez consulter et modifier la planification à tout moment sur {{ app_url }}.
+
+---
+Arrakis IT Services · https://www.arrakis.lu

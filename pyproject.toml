@@ -32,6 +32,7 @@ httpx = "~0.28"
 slowapi = "~0.1.10"
 email-validator = "^2.3"
 python-dateutil = "^2.9"
+weasyprint = "^70.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4"
@@ -41,6 +42,7 @@ ruff = "~0.17"
 mypy = "^1.20"
 pre-commit = "^4.6"
 types-python-dateutil = "^2.9"
+pypdf = "^6.20"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
@@ -81,6 +83,11 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 exclude = ["^alembic/versions/"]
+
+[[tool.mypy.overrides]]
+# Third-party packages without type information.
+module = ["weasyprint.*"]
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]

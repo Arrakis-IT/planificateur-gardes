@@ -67,7 +67,9 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 # --- Prod ---------------------------------------------------------------------
 FROM runtime AS prod
 ARG APP_RELEASE=dev
-ENV APP_RELEASE=${APP_RELEASE}
+# Fontconfig (WeasyPrint) needs a writable cache; the prod container is read-only + tmpfs /tmp.
+ENV APP_RELEASE=${APP_RELEASE} \
+    XDG_CACHE_HOME=/tmp/.cache
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app app/ ./app/
 COPY --chown=app:app alembic/ ./alembic/

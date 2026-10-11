@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Planification des gardes — {{ clinic.name }}</title>
+<style>
+  @font-face { font-family: 'Inter'; font-weight: 400 700; src: url('fonts/inter-latin.woff2'); }
+  @font-face { font-family: 'Fraunces'; font-weight: 400 600; src: url('fonts/fraunces-latin.woff2'); }
+  @font-face { font-family: 'JetBrains Mono'; font-weight: 500 600; src: url('fonts/jetbrains-mono-latin.woff2'); }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+    @bottom-center {
+      content: "Made with love by Arrakis IT Services — info@arrakis.lu — www.arrakis.lu";
+      font-family: 'Inter', sans-serif;
+      font-size: 7pt;
+      color: #999;
+      border-top: 0.25pt solid #ccc;
+      vertical-align: top;
+      padding-top: 1.5mm;
+      width: 100%;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; font-size: 8pt; line-height: 1.25; color: #1a1a1a; margin: 0; }
+
+  .month { page-break-after: always; page-break-inside: avoid; }
+  .month:last-of-type { page-break-after: auto; }
+
+  .doc-header { display: flex; justify-content: space-between; align-items: flex-start;
+                border-bottom: 1pt solid #1a1a1a; padding-bottom: 3pt; margin-bottom: 6pt; }
+  .doc-header .clinic { font-family: 'Fraunces', serif; font-size: 13pt; font-weight: 500; }
+  .doc-header .meta { color: #555; font-size: 7.5pt; margin-top: 1pt; }
+  .wordmark { font-size: 6.5pt; letter-spacing: 0.18em; color: #b0ab9e; text-transform: uppercase; white-space: nowrap; }
+  .wordmark strong { color: #2d4a3e; font-weight: 600; }
+
+  h2 { font-family: 'Fraunces', serif; font-size: 12pt; font-weight: 500; color: #2d4a3e; margin: 0 0 4pt; }
+  h2::first-letter { text-transform: uppercase; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #eee; border-bottom: 1pt solid #1a1a1a; font-size: 7pt; text-transform: uppercase;
+       letter-spacing: 0.04em; text-align: left; padding: 2.2pt 6pt; }
+  td { padding: 2.2pt 6pt; border-bottom: 0.5pt solid #ccc; vertical-align: middle; }
+  tr.weekend td { background: #ececec; }
+  tr.onsite td { background: #fff8e0; }  /* as in the standalone app's print view */
+  tr.weekend.onsite td { background: #ececec; }  /* weekend / holiday grey wins (brief §7.1) */
+  tr.onsite td.type { font-weight: 600; color: #7a5c00; }
+  tr.xx td.doctor { color: #c0392b; font-weight: 600; }
+  .col-date { width: 62pt; } .col-day { width: 140pt; } .col-type { width: 60pt; }
+  .holiday { color: #666; font-size: 6.8pt; }
+  .swatch { display: inline-block; width: 7pt; height: 7pt; border-radius: 1.5pt; margin-right: 4pt;
+            vertical-align: -0.5pt; }
+  .code { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: #555; }
+
+  .stats { page-break-inside: avoid; margin-top: 14pt; }
+  .stats td.num, .stats th.num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+  .stats th.num { font-family: 'Inter', sans-serif; }
+  .note { color: #666; font-size: 6.8pt; margin-top: 3pt; }
+</style>
+</head>
+<body>
+{% macro header() -%}
+  <div class="doc-header">
+    <div>
+      <div class="clinic">{{ clinic.name }}</div>
+      <div class="meta">
+        Période du {{ generation.period_from|short_date }} au {{ generation.period_to|short_date }}
+        {% if actor_name %}— {{ 'Modifié' if edited else 'Généré' }} par {{ actor_name }} le {{ when }}{% endif %}
+      </div>
+    </div>
+    <div class="wordmark"><strong>Arrakis</strong> IT</div>
+  </div>
+{%- endmacro %}
+
+{% for month in months %}
+<section class="month">
+  {{ header() }}
+  <h2>{{ month.first|month_label }}</h2>
+  <table>
+    <thead>
+      <tr><th class="col-date">Date</th><th class="col-day">Jour</th><th>Médecin</th><th class="col-type">Type</th></tr>
+    </thead>
+    <tbody>
+      {% for day in month.days %}
+      <tr class="{{ 'weekend' if day.weekend }}{{ ' onsite' if day.onsite }}{{ ' xx' if not day.doctor }}">
+        <td>{{ day.day|short_date }}</td>
+        <td>{{ day.day|weekday_fr }}{% if day.holiday %} <span class="holiday">· {{ day.holiday }}</span>{% endif %}</td>
+        <td class="doctor">
+          {% if day.doctor %}<span class="swatch" style="background: {{ day.doctor.color }}"></span>{{ day.doctor.full_name }} <span class="code">({{ day.doctor.doctor_code }})</span>
+          {% else %}— Aucun disponible —{% endif %}
+        </td>
+        <td class="type">{{ 'Sur place' if day.onsite else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if loop.last %}
+  <div class="stats">
+    <h2>Statistiques</h2>
+    {% set s = stats %}
+    <table>
+      <thead>
+        <tr>
+          <th>Médecin</th>
+          <th class="num">Semaine</th><th class="num">%</th>
+          <th class="num">Week-end</th><th class="num">%</th>
+          <th class="num">Sur place</th><th class="num">%</th>
+          <th class="num">Congés</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in s.doctors %}{% set user = users[row.code] %}
+        <tr>
+          <td><span class="swatch" style="background: {{ user.color }}"></span>{{ user.full_name }} <span class="code">({{ row.code }})</span></td>
+          <td class="num">{{ row.week }}</td>
+          <td class="num">{{ '%.1f%%'|format(row.week / s.total_week * 100) if s.total_week else '–' }}</td>
+          <td class="num">{{ row.weekend }}</td>
+          <td class="num">{{ '%.1f%%'|format(row.weekend / s.total_weekend * 100) if s.total_weekend else '–' }}</td>
+          <td class="num">{{ row.onsite }}</td>
+          <td class="num">{{ '%.1f%%'|format(row.onsite / s.total_onsite * 100) if s.total_onsite else '–' }}</td>
+          <td class="num">{{ row.vacation_days }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="note">Les jours fériés en semaine sont comptés dans la colonne « Week-end ». « Congés » : jours de congés compris dans la période.</div>
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+</body>
+</html>

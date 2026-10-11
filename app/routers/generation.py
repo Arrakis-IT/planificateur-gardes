@@ -7,15 +7,19 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
+from app.db import get_sessionmaker
 from app.dependencies import ClinicAuth, ClinicScope, DbSession
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
 from app.schemas.forms import GenerateForm
 from app.services import calendar as cal
+from app.services.mail import MailSender, get_mail_sender
+from app.services.notifications import send_schedule_notification
+from app.services.pdf import build_schedule_pdf, pdf_filename
 from app.services.planning import GenerationError, build_days, results_stats, run_generation
 from app.templating import render, set_flash
 
@@ -89,8 +93,10 @@ async def generate(
     auth: ClinicAuth,
     clinic_id: ClinicScope,
     db: DbSession,
+    background: BackgroundTasks,
+    mailer: Annotated[MailSender, Depends(get_mail_sender)],
 ) -> Response:
-    """Run the algorithm and store the new active generation."""
+    """Run the algorithm, store the new active generation, then email the PDF (background)."""
     active = await repo.get_active_generation(db, clinic_id)
     if active is not None and not form.confirm_overwrite:
         return await _generate_page(
@@ -103,15 +109,26 @@ async def generate(
             400,
         )
     try:
-        await run_generation(db, clinic_id, auth.user, form.period_from, form.period_to, request)
+        generation = await run_generation(
+            db, clinic_id, auth.user, form.period_from, form.period_to, request
+        )
     except GenerationError as exc:
         await db.rollback()
         return await _generate_page(
             request, clinic_id, db, form.period_from, form.period_to, {"error": str(exc)}, 400
         )
     await db.commit()
+    background.add_task(
+        send_schedule_notification,
+        get_sessionmaker(),
+        mailer,
+        clinic_id,
+        generation.id,
+        auth.user.id,
+        "generated",
+    )
     response = RedirectResponse("/resultats", status_code=303)
-    set_flash(response, "Planification générée.")
+    set_flash(response, "Planification générée. Le PDF est envoyé par e-mail à tous les médecins.")
     return response
 
 
@@ -147,5 +164,33 @@ async def results(
             "users": stats.users,
             "filter_code": filter_code,
             "today": cal.today_local(),
+        },
+    )
+
+
+@router.get("/resultats/pdf")
+async def results_pdf(
+    request: Request, auth: ClinicAuth, clinic_id: ClinicScope, db: DbSession
+) -> Response:
+    """Download the PDF of the active generation."""
+    generation = await repo.get_active_generation(db, clinic_id)
+    clinic = auth.user.clinic
+    if generation is None or clinic is None:
+        raise HTTPException(404, "Aucune planification active.")
+    generated_by = (
+        await users_repo.get_user_in_clinic(db, clinic_id, generation.generated_by)
+        if generation.generated_by
+        else None
+    )
+    pdf = await build_schedule_pdf(
+        db, clinic, generation, generated_by.full_name if generated_by else None
+    )
+    filename = pdf_filename(clinic, generation)
+    return Response(
+        pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
         },
     )

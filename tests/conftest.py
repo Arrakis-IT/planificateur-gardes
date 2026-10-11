@@ -57,9 +57,10 @@ class FakeMailer:
 
     sent: list[OutgoingEmail] = field(default_factory=list)
     fail: bool = False
+    fail_for: set[str] = field(default_factory=set)
 
     async def send(self, message: OutgoingEmail) -> None:
-        if self.fail:
+        if self.fail or message.to in self.fail_for:
             raise ConnectionError("SMTP down")
         self.sent.append(message)
 

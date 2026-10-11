@@ -133,6 +133,11 @@ button {
   transition: all 0.15s;
 }
 button:hover { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+a.button {
+  display: inline-block; padding: 8px 14px; border: 1px solid var(--line-strong); border-radius: 3px;
+  background: var(--surface); color: var(--ink); text-decoration: none; font-size: 13px;
+}
+a.button:hover { background: var(--ink); color: var(--surface); border-color: var(--ink); }
 button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 button.primary:hover { background: #1f352c; }
 button.danger { color: var(--err); border-color: var(--err); }
