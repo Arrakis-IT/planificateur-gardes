@@ -57,6 +57,8 @@ RUN --mount=type=cache,target=/root/.cache/pypoetry \
     poetry install --no-root --with dev
 COPY . .
 RUN chmod +x docker/entrypoint.sh
+# Writable cache for `poetry run` as the non-root user.
+ENV POETRY_CACHE_DIR=/tmp/pypoetry-cache
 USER app
 EXPOSE 8000
 ENTRYPOINT ["docker/entrypoint.sh"]

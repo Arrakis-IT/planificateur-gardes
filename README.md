@@ -16,6 +16,9 @@ docker compose up --build
 - App: http://localhost:8000 (healthcheck: http://localhost:8000/healthz)
 - Mailpit: http://localhost:8025
 
+`.env.example` ships with values ready for development, so `cp .env.example .env && docker compose up` works out of the box.
+For production, regenerate `APP_SECRET_KEY` (the command is included as a comment in `.env.example`); the app refuses to start in production with the dev key.
+
 Run checks inside the dev container:
 
 ```bash
@@ -38,3 +41,4 @@ After changing dependencies in `pyproject.toml`, regenerate the lock with `poetr
 ## License
 
 [AGPL-3.0](LICENSE) © Arrakis IT Services
+This project is licensed under the GNU Affero General Public License v3 or later (AGPL-3.0-or-later). See the LICENSE file for the full text.

@@ -4,20 +4,29 @@
 """Application settings loaded from environment variables (and `.env` in development)."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+SECRET_KEY_MIN_LENGTH = 32
+DEV_SECRET_KEY_PREFIX = "dev-only-"  # noqa: S105 - marker of the dev placeholder, not a secret
 
 
 class Settings(BaseSettings):
     """All runtime configuration. See `.env.example` for documentation of each variable."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        # Never echo raw input values (secrets) in validation errors / logs.
+        hide_input_in_errors=True,
+    )
 
     # App
     app_env: Literal["development", "production", "test"] = "development"
-    app_secret_key: SecretStr = Field(min_length=32)
+    app_secret_key: SecretStr = Field(min_length=SECRET_KEY_MIN_LENGTH)
     app_base_url: str = "http://localhost:8000"
     app_release: str = "dev"
 
@@ -65,6 +74,20 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """True when running in the production environment."""
         return self.app_env == "production"
+
+    @model_validator(mode="after")
+    def _reject_weak_secret_in_production(self) -> Self:
+        """Refuse to start in production with the dev placeholder or a short secret key."""
+        secret = self.app_secret_key.get_secret_value()
+        if self.is_production and (
+            secret.startswith(DEV_SECRET_KEY_PREFIX) or len(secret) < SECRET_KEY_MIN_LENGTH
+        ):
+            raise ValueError(
+                "APP_SECRET_KEY must be a strong secret in production "
+                '(≥32 chars, not starting with "dev-only-"). '
+                'Generate one with: python3 -c "import secrets; print(secrets.token_urlsafe(64))"'
+            )
+        return self
 
 
 @lru_cache

@@ -5,6 +5,7 @@
 
 import json
 import logging
+import secrets
 
 import pytest
 from pydantic import ValidationError
@@ -34,6 +35,42 @@ def test_secrets_not_exposed_in_repr():
     )
     assert "super-secret-value" not in repr(settings)
     assert "pw@host" not in repr(settings)
+
+
+DEV_KEY = "dev-only-DO-NOT-USE-IN-PRODUCTION-replace-this-string-with-generated-one"
+DB_URL = "postgresql+asyncpg://user:pw@host/db"
+
+
+def _set_env(monkeypatch, app_env: str, secret: str) -> None:
+    monkeypatch.setenv("APP_ENV", app_env)
+    monkeypatch.setenv("APP_SECRET_KEY", secret)
+    monkeypatch.setenv("DATABASE_URL", DB_URL)
+
+
+def test_dev_secret_key_rejected_in_production(monkeypatch):
+    _set_env(monkeypatch, "production", DEV_KEY)
+    with pytest.raises(ValidationError) as exc_info:
+        Settings()
+    message = str(exc_info.value)
+    assert "APP_SECRET_KEY must be a strong secret in production" in message
+    assert 'not starting with "dev-only-"' in message
+    assert "secrets.token_urlsafe(64)" in message
+
+
+def test_dev_secret_key_accepted_in_development(monkeypatch):
+    _set_env(monkeypatch, "development", DEV_KEY)
+    settings = Settings()
+    assert settings.app_env == "development"
+    assert settings.app_secret_key.get_secret_value() == DEV_KEY
+
+
+def test_strong_secret_key_accepted_in_production(monkeypatch):
+    strong_key = secrets.token_hex(32)  # 64 random hex chars
+    assert len(strong_key) == 64
+    _set_env(monkeypatch, "production", strong_key)
+    settings = Settings()
+    assert settings.is_production
+    assert settings.app_secret_key.get_secret_value() == strong_key
 
 
 def test_json_formatter_outputs_single_line_json():
