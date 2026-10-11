@@ -29,3 +29,6 @@ htmlcov/
 # Local backups
 backups/
 *.sql.gz
+
+# Private project docs (not for public repo)
+BRIEF.md
