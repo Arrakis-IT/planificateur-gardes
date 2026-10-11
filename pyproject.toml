@@ -1,10 +1,15 @@
-[tool.poetry]
+[project]
 name = "planificateur-gardes"
 version = "0.1.0"
 description = "Multi-tenant on-call duty scheduler for medical clinics."
-license = "AGPL-3.0-only"
-authors = ["Arrakis IT Services <info@arrakis.lu>"]
+authors = [{ name = "Juan Manuel Suárez", email = "info@arrakis.lu" }]
+license = "AGPL-3.0-or-later"
 readme = "README.md"
+requires-python = ">=3.12"
+# Dependencies are declared in [tool.poetry.dependencies] below.
+dynamic = ["dependencies"]
+
+[tool.poetry]
 # Application, not a library: dependencies only, the project itself is never installed.
 package-mode = false
 
