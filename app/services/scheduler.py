@@ -536,6 +536,14 @@ def compute_stats(
 
     `onsite` defaults to the request's on-site days; pass the effective set when some
     days were unmarked in the results (JS `esOnSiteEffectivo`).
+
+    Note: the 'Congés' column counts only vacation days that fall within the generation
+    period. This differs from the original Excel/VBA version, which counted all vacation
+    days regardless of period. Rationale: per-period statistics are more meaningful for a
+    semester-scoped planning view; a doctor's vacations outside the planning window are
+    irrelevant to the current schedule's balance. (`vacation_days` counts the entries of
+    `request.holidays`; callers pass the vacations of the period only, see
+    `app.services.planning.results_stats`.)
     """
     onsite_days = request.onsite if onsite is None else onsite
     public = set(request.luxembourg_holidays)

@@ -170,7 +170,11 @@ class ResultsStats:
 async def results_stats(
     db: AsyncSession, clinic_id: uuid.UUID, generation: Generation
 ) -> ResultsStats:
-    """Port of the standalone app's statistics table for a stored generation."""
+    """Port of the standalone app's statistics table for a stored generation.
+
+    Vacations are loaded for the generation period only ('Congés' column scope, see
+    `app.services.scheduler.compute_stats`).
+    """
     start, end = generation.period_from, generation.period_to
     assignments: dict[date, Assignment] = await repo.active_assignments(db, clinic_id, start, end)
     all_users = await repo.users_by_id(db, clinic_id)

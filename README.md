@@ -38,6 +38,16 @@ poetry run pytest
 
 After changing dependencies in `pyproject.toml`, regenerate the lock with `poetry lock` and commit it.
 
+## Statistics / Statistiques
+
+La page « Résultats » reprend le tableau de statistiques de la version d'origine (Semaine,
+Week-end, Sur place, Congés). Les jours fériés tombant en semaine sont comptés dans la colonne
+« Week-end ». La colonne « Congés » ne compte que les jours de congés compris dans la période
+de la planification, alors que la version Excel/VBA d'origine comptait tous les jours de congés,
+quelle que soit leur date : des statistiques par période sont plus parlantes pour une
+planification semestrielle, et les congés hors période n'ont aucune incidence sur l'équilibre
+du planning en cours.
+
 ## Security design (summary)
 
 - **Passwords**: argon2id (`argon2-cffi`), minimum 12 characters.

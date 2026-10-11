@@ -40,7 +40,7 @@
         <td>{{ u.full_name }}</td>
         <td>{{ u.email }}</td>
         <td>{% if u.is_superadmin %}<span class="badge">Superadmin</span>{% else %}{{ u.clinic.name if u.clinic else '' }}{% endif %}</td>
-        <td class="mono">{{ u.last_login_at.strftime('%d/%m/%Y %H:%M') if u.last_login_at else '—' }}</td>
+        <td class="mono">{{ u.last_login_at|local_datetime if u.last_login_at else '—' }}</td>
         <td>
           {% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}
           {% if u.must_change_password %}<span class="badge warn">MDP à changer</span>{% endif %}
