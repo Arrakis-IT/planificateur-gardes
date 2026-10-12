@@ -20,20 +20,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:${PATH}"
 
-# WeasyPrint (PDF) needs Pango + HarfBuzz; fonts for PDF fallback.
-# `upgrade` picks up Debian security fixes on every rebuild.
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+# One layer: Debian security fixes (`upgrade`, picked up on every rebuild), WeasyPrint's
+# runtime libraries (Pango + HarfBuzz) and fonts for PDF fallback (sorted), a current system
+# pip (the base image's has known CVEs; wheels only, no setup scripts), and the runtime user.
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+        fonts-dejavu-core \
+        libharfbuzz-subset0 \
+        libharfbuzz0b \
         libpango-1.0-0 \
         libpangoft2-1.0-0 \
-        libharfbuzz0b \
-        libharfbuzz-subset0 \
-        fonts-dejavu-core \
-    && rm -rf /var/lib/apt/lists/*
-
-# Base image pip is outdated (known CVEs); keep the system one current.
-RUN pip install --no-cache-dir --upgrade "pip==26.2.1"
-
-RUN groupadd --system app && useradd --system --gid app --home /app app
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --only-binary=:all: --upgrade "pip==26.2.1" \
+    && groupadd --system app \
+    && useradd --system --gid app --home /app app
 WORKDIR /app
 
 # --- Builder: Poetry + main dependencies -------------------------------------
@@ -42,15 +43,18 @@ FROM runtime AS builder
 ARG POETRY_VERSION=2.5.1
 # Poetry lives in its own venv; the app venv (/opt/venv) is the active one,
 # so with virtualenvs.create=false Poetry installs into it.
+# Wheels only (pip and Poetry): no third-party setup script is ever executed at build time.
 ENV POETRY_HOME=/opt/poetry \
     POETRY_VIRTUALENVS_CREATE=false \
     POETRY_NO_INTERACTION=1 \
-    POETRY_CACHE_DIR=/root/.cache/pypoetry
+    POETRY_INSTALLER_ONLY_BINARY=:all: \
+    POETRY_CACHE_DIR=/root/.cache/pypoetry \
+    PIP_ONLY_BINARY=:all:
 RUN python -m venv "$POETRY_HOME" \
-    && "$POETRY_HOME/bin/pip" install "poetry==${POETRY_VERSION}" \
+    && "$POETRY_HOME/bin/pip" install --only-binary=:all: "poetry==${POETRY_VERSION}" \
     && ln -s "$POETRY_HOME/bin/poetry" /usr/local/bin/poetry \
     && python -m venv "$VIRTUAL_ENV" \
-    && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir --upgrade "pip==26.2.1"
+    && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir --only-binary=:all: --upgrade "pip==26.2.1"
 
 COPY pyproject.toml poetry.lock ./
 RUN --mount=type=cache,target=/root/.cache/pypoetry \
@@ -81,11 +85,14 @@ COPY --from=builder /opt/venv /opt/venv
 RUN /opt/venv/bin/python -m pip uninstall --yes --quiet pip \
     && /usr/local/bin/python -m pip uninstall --yes --quiet pip \
     && rm -rf /usr/local/lib/python3.12/ensurepip \
-    && echo "${GIT_SHA}" > /app/VERSION && chown app:app /app/VERSION
-COPY --chown=app:app app/ ./app/
-COPY --chown=app:app alembic/ ./alembic/
-COPY --chown=app:app alembic.ini ./
-COPY --chown=app:app --chmod=755 docker/entrypoint.sh ./docker/entrypoint.sh
+    && echo "${GIT_SHA}" > /app/VERSION
+# Code and config stay owned by root: the `app` user can read / execute them but never
+# modify them (it must not be able to rewrite its own code). Nothing under /app is written
+# at runtime (caches go to /tmp).
+COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
+COPY --chmod=755 docker/entrypoint.sh ./docker/entrypoint.sh
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

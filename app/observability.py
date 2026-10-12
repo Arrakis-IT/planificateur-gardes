@@ -43,12 +43,18 @@ SAFE_HEADERS = frozenset(
         "hx-request",
     }
 )
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# Masking patterns, written to run in linear time on hostile input (no backtracking):
+# possessive quantifiers (`++`, `{m,n}+`, Python ≥ 3.11) never give characters back, and the
+# leading look-behinds only let a match start at the beginning of a run, so a long run without
+# "@" (or ":") is scanned once instead of once per position.
+_EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@(?:[A-Za-z0-9-]++\.)++[A-Za-z]{2,}+"
+)
+_IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}+\.){3}\d{1,3}+(?!\.?\d)")
 # IPv6 candidates (incl. compressed "::" forms), confirmed with the ipaddress module so that
 # e.g. clock times like "12:30:45" are left alone.
-_IPV6_CANDIDATE_RE = re.compile(r"(?<![\w:])[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7}(?![\w:])")
-_RESET_PATH_RE = re.compile(r"(/reset/)[^/?#\s]+")
+_IPV6_CANDIDATE_RE = re.compile(r"(?<![\w:])[0-9A-Fa-f]{0,4}+(?::[0-9A-Fa-f]{0,4}+){2,7}+(?![\w:])")
+_RESET_PATH_RE = re.compile(r"(/reset/)[^/?#\s]++")
 
 
 def app_version() -> str:

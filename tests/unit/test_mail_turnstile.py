@@ -3,6 +3,7 @@
 
 """SMTP sender and Turnstile verifier, without network access."""
 
+import ssl
 from typing import Any, ClassVar
 
 import httpx
@@ -33,7 +34,7 @@ class FakeSMTP:
         self.calls.append(("quit", None))
 
     def starttls(self, context: Any) -> None:
-        self.calls.append(("starttls", None))
+        self.calls.append(("starttls", context))
 
     def login(self, user: str, password: str) -> None:
         self.calls.append(("login", user))
@@ -83,6 +84,9 @@ async def test_brevo_uses_starttls_and_login(fake_smtp):
     smtp = fake_smtp.instances[0]
     assert (smtp.host, smtp.port) == ("smtp-relay.brevo.com", 587)
     assert [c[0] for c in smtp.calls] == ["starttls", "login", "send", "quit"]
+    context = smtp.calls[0][1]
+    assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname is True
+    assert context.minimum_version >= ssl.TLSVersion.TLSv1_2
 
 
 _REAL_ASYNC_CLIENT = httpx.AsyncClient

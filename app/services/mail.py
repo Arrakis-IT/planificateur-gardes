@@ -48,6 +48,20 @@ class MailSender(Protocol):
         ...
 
 
+def tls_context() -> ssl.SSLContext:
+    """TLS context for the Brevo relay: certificate AND hostname are verified.
+
+    `ssl.create_default_context()` already sets CERT_REQUIRED and check_hostname=True; they
+    are restated here so the intent is explicit (static analysers flag STARTTLS without a
+    visibly verifying context). Minimum protocol: TLS 1.2.
+    """
+    context = ssl.create_default_context()
+    context.verify_mode = ssl.CERT_REQUIRED
+    context.check_hostname = True
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
 class SmtpMailSender:
     """Send via SMTP. Uses the dev relay (Mailpit) when MAIL_DEV_HOST is set."""
 
@@ -82,7 +96,8 @@ class SmtpMailSender:
         with smtplib.SMTP(
             s.brevo_smtp_host, s.brevo_smtp_port, timeout=SMTP_TIMEOUT_SECONDS
         ) as smtp:
-            smtp.starttls(context=ssl.create_default_context())
+            # Server certificate and hostname validated (see tls_context).
+            smtp.starttls(context=tls_context())
             if s.brevo_smtp_user and s.brevo_smtp_password:
                 smtp.login(s.brevo_smtp_user, s.brevo_smtp_password.get_secret_value())
             smtp.send_message(msg)

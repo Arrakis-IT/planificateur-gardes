@@ -35,8 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Poetry
-        run: pipx install poetry==2.5.1
+      - name: Install Poetry (wheels only)
+        run: pipx install poetry==2.5.1 --pip-args="--only-binary=:all:"
 
       - uses: actions/setup-python@v5
         with:
@@ -46,7 +46,11 @@ jobs:
       - name: Check lock file is in sync with pyproject.toml
         run: poetry check --lock
 
-      - name: Install dependencies
+      - name: Install dependencies (wheels only, no setup scripts)
+        env:
+          POETRY_VIRTUALENVS_CREATE: "true"
+          POETRY_NO_INTERACTION: "1"
+          POETRY_INSTALLER_ONLY_BINARY: ":all:"
         run: poetry install --no-root --with dev
 
       - name: Ruff lint

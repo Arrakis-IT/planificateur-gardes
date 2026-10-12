@@ -394,3 +394,42 @@ async def test_sentry_receives_scrubbed_unhandled_error(monkeypatch):
 
 async def test_sentry_test_route_absent_outside_development(client):
     assert (await client.get("/_dev/sentry-test")).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "hostile",
+    [
+        "a" * 100_000,  # long local-part-like run without "@"
+        "a@" + "b." * 50_000,  # many labels, no TLD at the end
+        "a@" + "b" * 100_000 + "!",
+        "1." * 50_000,  # IPv4-like run
+        ":" * 100_000,
+        "1:" * 50_000 + "z",  # IPv6-like run that never validates
+        "/reset/" + "x" * 100_000,
+    ],
+)
+def test_scrubbing_regexes_run_in_linear_time(hostile):
+    import time
+
+    from app.observability import _scrub_text
+
+    started = time.perf_counter()
+    _scrub_text(hostile)
+    assert time.perf_counter() - started < 0.5
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("contact nicolas.r+gardes@cabinet-parc.lu now", "contact [email] now"),
+        ("x@mail.example.museum", "[email]"),
+        ("not an email: a@b", "not an email: a@b"),
+        ("ip 192.168.1.10.", "ip [ip]."),
+        ("version 1.2.3.4.5", "version 1.2.3.4.5"),
+        ("from fe80::1 at 08:14:22", "from [ip] at 08:14:22"),
+    ],
+)
+def test_scrubbing_regexes_still_match(text, expected):
+    from app.observability import _scrub_text
+
+    assert _scrub_text(text) == expected
