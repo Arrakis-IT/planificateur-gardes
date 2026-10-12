@@ -208,7 +208,6 @@ details[open] { display: block; margin-top: 6px; }
 .empty-state { color: var(--ink-faint); font-style: italic; padding: 12px; text-align: center; }
 
 .pager { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
-.pager a { text-decoration: none; }
 
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge.onsite-badge { background: var(--onsite-soft); color: #7a5c00; border: 1px solid var(--onsite); }
@@ -416,6 +415,7 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .pager a {
+  text-decoration: none;
   display: inline-flex; align-items: center; justify-content: center; min-height: 36px;
   padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface);
 }
@@ -493,10 +493,10 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
   /* Week: vertical list, big previous/next buttons. */
   .pager { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
-  .pager a, .pager strong { text-align: center; }
+  .pager strong { text-align: center; }
   .pager strong { grid-row: 1; grid-column: 1 / -1; }
   .pager:has(strong) a { grid-row: 2; }
-  .pager a { padding: 0 6px; line-height: 1.2; }
+  .pager a { text-align: center; padding: 0 6px; line-height: 1.2; }
   .week-row { grid-template-columns: 64px 1fr; padding: 12px 8px; min-height: 64px; }
   .week-row .badges { grid-column: 2; }
   .week-daynum { font-size: 22px; }

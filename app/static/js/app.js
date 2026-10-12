@@ -27,7 +27,7 @@
     });
   }
   document.addEventListener("click", function (event) {
-    if (event.target instanceof Element && event.target.hasAttribute("data-close-more")) {
+    if (event.target instanceof HTMLElement && event.target.dataset.closeMore !== undefined) {
       closeMore();
     }
   });
@@ -40,7 +40,7 @@
   document.addEventListener("click", function (event) {
     var target = event.target;
     // Backdrop click (not inside the dialog) or explicit close button.
-    if (target instanceof Element && target.hasAttribute("data-close-modal")) closeModal();
+    if (target instanceof HTMLElement && target.dataset.closeModal !== undefined) closeModal();
   });
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape") {
