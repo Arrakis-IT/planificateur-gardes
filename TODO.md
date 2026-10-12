@@ -1,22 +1,25 @@
 # TODO
 
-Items to resolve in later phases. Move them to GitHub issues once the repository is published.
+Items to resolve later. Move them to GitHub issues once the repository is published.
 
-## Deployment notes (live channel, phase 6)
+## Base image vulnerabilities without upstream fix (Trivy, 2026-10-12)
 
-- Presence and SSE fan-out live in the app process: keep **one uvicorn worker**. Scaling
-  out needs a shared channel (PostgreSQL LISTEN/NOTIFY) — see `app/services/presence.py`.
-- Reverse proxy for `/sse/presence`: `proxy_buffering off;`, `proxy_read_timeout` > 15 s
-  (keep-alive ping interval), HTTP/1.1 with `Connection ""`.
+`trivy image` reports 49 HIGH (0 CRITICAL) findings in Debian 13 base packages, **none with a
+fixed version available yet** (expat, util-linux, acl, ncurses, systemd libs, perl-base).
+Python packages: none (pip removed from the runtime image).
 
-## Phase 9 — CSP
+Mitigation in place:
+- The image runs `apt-get upgrade` at build time: rebuilding picks up Debian fixes as soon as
+  they are published (Dependabot will bump the base image weekly once configured, phase 10).
+- Most affected tools are unreachable at runtime: the container runs as a non-root user,
+  read-only root filesystem, `cap_drop: ALL`, `no-new-privileges` (no mount / nsenter /
+  login usage possible). The app parses no untrusted XML (expat is used by fontconfig on its
+  own trusted configuration files).
 
-`style-src-attr 'unsafe-inline'` is required while doctor colors are applied with an inline
-`style="--doctor-color: …"` attribute.
-Clean alternative: generate per-doctor CSS classes in a stylesheet regenerated when doctors
-are added or edited. Decide in Phase 9.
+Action: re-run `trivy image --severity HIGH,CRITICAL` before each release and rebuild when
+fixes land.
 
-Also for the CSP:
-- HTMX indicator styles are already disabled (`htmx-config` meta in `base.html`), so HTMX
-  needs no inline style; `app.js` has no inline handlers either.
-- Turnstile needs `script-src` and `frame-src https://challenges.cloudflare.com`.
+## After the first deployment
+
+- Run Mozilla HTTP Observatory against https://gardes.arrakis.lu (needs a public HTTPS host)
+  and check the A+ estimate made offline in phase 9.

@@ -28,7 +28,6 @@ class Settings(BaseSettings):
     app_env: Literal["development", "production", "test"] = "development"
     app_secret_key: SecretStr = Field(min_length=SECRET_KEY_MIN_LENGTH)
     app_base_url: str = "http://localhost:8000"
-    app_release: str = "dev"
 
     # Database
     database_url: SecretStr
@@ -57,7 +56,7 @@ class Settings(BaseSettings):
 
     # Sentry
     sentry_dsn: SecretStr | None = None
-    sentry_environment: str = "production"
+    sentry_environment: str | None = None  # defaults to APP_ENV
 
     # Rate limiting
     rate_limit_login_per_minute: int = 5

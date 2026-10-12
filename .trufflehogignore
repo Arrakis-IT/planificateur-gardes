@@ -1,0 +1,11 @@
+# trufflehog --exclude-paths (regexes). Reviewed false positives only:
+# - VCS data and local caches (gitignored; random hashes trip generic detectors)
+\.git/
+\.mypy_cache/
+\.ruff_cache/
+\.pytest_cache/
+__pycache__/
+# - local dev secrets file (gitignored, never committed)
+^\.env$
+# - package SHA-256 hashes (e.g. sentry_sdk-*.tar.gz hash flagged as "SentryToken")
+poetry\.lock$

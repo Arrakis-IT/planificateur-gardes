@@ -21,13 +21,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:${PATH}"
 
 # WeasyPrint (PDF) needs Pango + HarfBuzz; fonts for PDF fallback.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# `upgrade` picks up Debian security fixes on every rebuild.
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
         libpango-1.0-0 \
         libpangoft2-1.0-0 \
         libharfbuzz0b \
         libharfbuzz-subset0 \
         fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+
+# Base image pip is outdated (known CVEs); keep the system one current.
+RUN pip install --no-cache-dir --upgrade "pip==26.2.1"
 
 RUN groupadd --system app && useradd --system --gid app --home /app app
 WORKDIR /app
@@ -45,7 +49,8 @@ ENV POETRY_HOME=/opt/poetry \
 RUN python -m venv "$POETRY_HOME" \
     && "$POETRY_HOME/bin/pip" install "poetry==${POETRY_VERSION}" \
     && ln -s "$POETRY_HOME/bin/poetry" /usr/local/bin/poetry \
-    && python -m venv "$VIRTUAL_ENV"
+    && python -m venv "$VIRTUAL_ENV" \
+    && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir --upgrade "pip==26.2.1"
 
 COPY pyproject.toml poetry.lock ./
 RUN --mount=type=cache,target=/root/.cache/pypoetry \
@@ -66,11 +71,17 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 
 # --- Prod ---------------------------------------------------------------------
 FROM runtime AS prod
-ARG APP_RELEASE=dev
+# Commit SHA of the build, used as the Sentry release (app/observability.py).
+ARG GIT_SHA=unknown
 # Fontconfig (WeasyPrint) needs a writable cache; the prod container is read-only + tmpfs /tmp.
-ENV APP_RELEASE=${APP_RELEASE} \
-    XDG_CACHE_HOME=/tmp/.cache
+ENV XDG_CACHE_HOME=/tmp/.cache
 COPY --from=builder /opt/venv /opt/venv
+# pip is not needed at runtime: remove it from the app venv and from the system Python
+# (its vendored urllib3 / msgpack copies are what image scanners flag), plus ensurepip.
+RUN /opt/venv/bin/python -m pip uninstall --yes --quiet pip \
+    && /usr/local/bin/python -m pip uninstall --yes --quiet pip \
+    && rm -rf /usr/local/lib/python3.12/ensurepip \
+    && echo "${GIT_SHA}" > /app/VERSION && chown app:app /app/VERSION
 COPY --chown=app:app app/ ./app/
 COPY --chown=app:app alembic/ ./alembic/
 COPY --chown=app:app alembic.ini ./

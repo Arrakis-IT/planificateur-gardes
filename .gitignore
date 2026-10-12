@@ -33,3 +33,7 @@ htmlcov/
 backups/
 *.sql.gz
 
+VERSION
+
+# Fontconfig cache created by WeasyPrint in the dev container (HOME=/app)
+.cache/

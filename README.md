@@ -58,6 +58,47 @@ du planning en cours.
 - **Brute force**: 5 login attempts/min per IP, account locked 15 min after 10 failures,
   password reset limited to 3/hour per account; Cloudflare Turnstile on `/login` and `/reset`.
 
+## Deployment
+
+Production runs the `prod` image behind the shared reverse proxy (TLS termination), with
+`docker-compose.prod.yml`. Essentials:
+
+- `APP_ENV=production`, a strong `APP_SECRET_KEY`, `APP_BASE_URL=https://gardes.arrakis.lu`
+  (both enforced at startup), `SESSION_COOKIE_SECURE=true`, `TURNSTILE_ENABLED=true`.
+- **One uvicorn worker**: presence and live events are kept in process memory.
+- Build with `--build-arg GIT_SHA=$(git rev-parse --short HEAD)`: the SHA is written to
+  `/app/VERSION` and used as the Sentry release.
+
+### Reverse proxy
+
+- **Do not overwrite or strip the security headers set by the app** (CSP, HSTS,
+  X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, COOP/CORP):
+  no `proxy_hide_header` for them and no `add_header` with different values. HSTS is sent by
+  the app in production; if the proxy also sends it, it must be the identical value
+  `max-age=63072000; includeSubDomains; preload`. The proxy must redirect HTTP to HTTPS.
+- Forward `X-Forwarded-For` / `X-Forwarded-Proto` (uvicorn runs with `--proxy-headers`;
+  restrict `FORWARDED_ALLOW_IPS` to the proxy's network).
+- `/sse/presence` (Server-Sent Events): `proxy_buffering off;`, `proxy_read_timeout` above
+  15 s (keep-alive ping), HTTP/1.1 with `Connection ""`.
+
+### Content Security Policy
+
+`script-src 'self'` and `style-src 'self'`: no inline scripts or `<style>` blocks anywhere
+(checked by a test). The single relaxation is `style-src-attr 'unsafe-inline'`, needed for
+doctor colors applied as `style="--doctor-color: …"` (values come from the server-side
+palette). Generating per-doctor CSS classes would mean regenerating a stylesheet whenever a
+doctor is added or edited, and inline *attributes* (not `<style>` blocks) have a much smaller
+attack surface. For a stricter CSP later: serve the classes from an endpoint such as
+`/static/doctor-colors.css?v={hash}` and drop the relaxation.
+
+### Error reporting
+
+Set `SENTRY_DSN` to enable Sentry (nothing is sent otherwise). Only unhandled exceptions and
+HTTP 500 are reported, without performance tracing. Personal data is removed before sending
+(`app/observability.py`, `scrub_event`): no user, cookies, request body, query string or
+sensitive headers; emails and IP addresses in messages are masked; stack frames are sent
+without local variables. `GET /_dev/sentry-test` (development only) raises a test error.
+
 ## License
 
 [AGPL-3.0](LICENSE) © Arrakis IT Services

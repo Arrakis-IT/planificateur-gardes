@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +21,8 @@ from app.db import dispose_engine, get_sessionmaker
 from app.dependencies import RedirectError
 from app.middleware.csrf import CSRFCookieMiddleware, verify_csrf
 from app.middleware.rate_limit import limiter
+from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.observability import app_version, init_sentry
 from app.repositories.scope import NoClinicScopeError
 from app.routers import (
     account,
@@ -101,10 +103,11 @@ def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
     settings = get_settings()
     configure_logging(settings.log_level, json_output=settings.is_production)
+    init_sentry(settings)
 
     app = FastAPI(
         title="Planificateur de Gardes",
-        version=settings.app_release,
+        version=app_version(),
         lifespan=lifespan,
         # No public API docs in production.
         docs_url=None if settings.is_production else "/docs",
@@ -114,6 +117,8 @@ def create_app() -> FastAPI:
     )
     app.state.limiter = limiter
     app.add_middleware(CSRFCookieMiddleware)
+    # Added last = outermost: headers also land on error pages and redirects.
+    app.add_middleware(SecurityHeadersMiddleware, settings=settings)
     _register_error_handlers(app)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -128,7 +133,21 @@ def create_app() -> FastAPI:
     app.include_router(generation.router)
     app.include_router(sse.router)
     app.include_router(app_router.router)
+    if settings.app_env == "development":
+        app.include_router(dev_tools_router())
     return app
+
+
+def dev_tools_router() -> APIRouter:
+    """DEVELOPMENT ONLY: routes to check integrations by hand (never mounted elsewhere)."""
+    router = APIRouter(prefix="/_dev", include_in_schema=False)
+
+    @router.get("/sentry-test")
+    async def sentry_test() -> None:
+        """Raise an unhandled error to check that it reaches Sentry."""
+        raise ValueError("Sentry test")
+
+    return router
 
 
 app = create_app()
