@@ -33,12 +33,12 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://planificateur_gardes:planificateur_gardes@localhost:5432/planificateur_gardes_test
       APP_SECRET_KEY: ci-only-secret-key-0123456789abcdef0123456789
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Poetry
         run: pipx install poetry==2.5.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: poetry
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
           path: coverage.xml
@@ -80,10 +80,10 @@ jobs:
     name: Production image
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: Build production image (no push)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile
