@@ -23,6 +23,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, UUIDPrimaryKeyMixin
 
+USER_FK = "user.id"
+CLINIC_FK = "clinic.id"
+GENERATION_FK = "generation.id"
+CASCADE = "CASCADE"
+SET_NULL = "SET NULL"
+
 
 class Holiday(UUIDPrimaryKeyMixin, Base):
     """A vacation day of a doctor (table name from the brief: `holiday`).
@@ -38,11 +44,11 @@ class Holiday(UUIDPrimaryKeyMixin, Base):
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(USER_FK, ondelete=CASCADE), nullable=False
     )
     # Denormalised from the user for clinic-scoped filtering; must match user.clinic_id.
     clinic_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("clinic.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -57,10 +63,10 @@ class OnsiteDay(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (UniqueConstraint("clinic_id", "date"),)
 
     clinic_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("clinic.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -73,7 +79,7 @@ class CustomHoliday(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (UniqueConstraint("clinic_id", "date"),)
 
     clinic_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("clinic.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     label: Mapped[str] = mapped_column(Text, nullable=False)
@@ -94,14 +100,12 @@ class Generation(UUIDPrimaryKeyMixin, Base):
     )
 
     clinic_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("clinic.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False
     )
     period_from: Mapped[date] = mapped_column(Date, nullable=False)
     period_to: Mapped[date] = mapped_column(Date, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
-    generated_by: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("user.id", ondelete="SET NULL")
-    )
+    generated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -115,12 +119,12 @@ class Assignment(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (UniqueConstraint("generation_id", "date"),)
 
     generation_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("generation.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(GENERATION_FK, ondelete=CASCADE), nullable=False
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     onsite_removed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
-    edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -139,15 +143,15 @@ class AssignmentDraft(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (UniqueConstraint("generation_id", "date"),)
 
     clinic_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("clinic.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False, index=True
     )
     generation_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("generation.id", ondelete="CASCADE"), nullable=False
+        ForeignKey(GENERATION_FK, ondelete=CASCADE), nullable=False
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     onsite_removed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
-    edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     edited_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

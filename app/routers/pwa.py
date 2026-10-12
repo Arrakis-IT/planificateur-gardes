@@ -37,6 +37,8 @@ PRECACHE = (
     "icons/favicon-32.png",
 )
 
+PNG = "image/png"
+
 MANIFEST = {
     "name": "Planificateur des gardes",
     "short_name": "Gardes",
@@ -49,12 +51,12 @@ MANIFEST = {
     "background_color": "#f6f5f1",
     "theme_color": "#2d4a3e",
     "icons": [
-        {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
-        {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": PNG},
+        {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": PNG},
         {
             "src": "/static/icons/icon-maskable-512.png",
             "sizes": "512x512",
-            "type": "image/png",
+            "type": PNG,
             "purpose": "maskable",
         },
         {"src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml"},

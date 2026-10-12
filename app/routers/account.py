@@ -18,6 +18,10 @@ from app.templating import render, set_flash
 
 router = APIRouter(tags=["account"])
 
+IMPERSONATION_FORBIDDEN = (
+    "Impossible de changer le mot de passe d'un médecin dont vous avez pris l'identité."
+)
+
 
 @router.get("/parametres")
 async def settings_page(request: Request, auth: CurrentAuth) -> Response:
@@ -29,7 +33,7 @@ async def settings_page(request: Request, auth: CurrentAuth) -> Response:
     )
 
 
-@router.post("/parametres/mot-de-passe")
+@router.post("/parametres/mot-de-passe", responses={403: {"description": IMPERSONATION_FORBIDDEN}})
 async def change_password(
     request: Request,
     form: Annotated[ChangePasswordForm, Form()],
@@ -39,10 +43,7 @@ async def change_password(
 ) -> Response:
     """Change the password, revoke every session and open a fresh one."""
     if auth.impersonating:
-        raise HTTPException(
-            403,
-            "Impossible de changer le mot de passe d'un médecin dont vous avez pris l'identité.",
-        )
+        raise HTTPException(403, IMPERSONATION_FORBIDDEN)
     user = auth.user
     context = {"forced": user.must_change_password}
     error: str | None = None

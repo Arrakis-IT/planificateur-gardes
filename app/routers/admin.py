@@ -25,6 +25,8 @@ from app.templating import render, set_flash
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_superadmin)])
 
 SUPERADMINS_FILTER = "superadmins"
+CLINICS_PAGE = "/admin/clinics"
+USERS_PAGE = "/admin/users"
 
 
 def _redirect(url: str, message: str | None = None, level: str = "success") -> Response:
@@ -51,7 +53,7 @@ async def _get_user_or_404(db: DbSession, user_id: uuid.UUID) -> User:
 @router.get("")
 async def admin_index() -> Response:
     """Admin landing → clinics."""
-    return RedirectResponse("/admin/clinics", status_code=303)
+    return RedirectResponse(CLINICS_PAGE, status_code=303)
 
 
 # --- Clinics ----------------------------------------------------------------------------
@@ -87,7 +89,7 @@ async def clinic_create(
         meta={"name": clinic.name, "slug": clinic.slug},
     )
     await db.commit()
-    return _redirect("/admin/clinics", f"Cabinet « {clinic.name} » créé.")
+    return _redirect(CLINICS_PAGE, f"Cabinet « {clinic.name} » créé.")
 
 
 @router.post("/clinics/{clinic_id}/rename")
@@ -113,7 +115,7 @@ async def clinic_rename(
         meta={"old": old_name, "new": form.name},
     )
     await db.commit()
-    return _redirect("/admin/clinics", "Cabinet renommé.")
+    return _redirect(CLINICS_PAGE, "Cabinet renommé.")
 
 
 @router.post("/clinics/{clinic_id}/toggle-active")
@@ -133,9 +135,7 @@ async def clinic_toggle_active(
         target_id=clinic.id,
     )
     await db.commit()
-    return _redirect(
-        "/admin/clinics", "Cabinet réactivé." if clinic.active else "Cabinet désactivé."
-    )
+    return _redirect(CLINICS_PAGE, "Cabinet réactivé." if clinic.active else "Cabinet désactivé.")
 
 
 @router.post("/clinics/{clinic_id}/delete")
@@ -146,7 +146,7 @@ async def clinic_delete(
     clinic = await _get_clinic_or_404(db, clinic_id)
     if await clinics_repo.count_clinic_users(db, clinic.id):
         return _redirect(
-            "/admin/clinics",
+            CLINICS_PAGE,
             "Impossible de supprimer un cabinet qui a encore des utilisateurs.",
             "error",
         )
@@ -162,7 +162,7 @@ async def clinic_delete(
     )
     await db.delete(clinic)
     await db.commit()
-    return _redirect("/admin/clinics", f"Cabinet « {clinic.name} » supprimé.")
+    return _redirect(CLINICS_PAGE, f"Cabinet « {clinic.name} » supprimé.")
 
 
 # --- Users --------------------------------------------------------------------------------
@@ -275,7 +275,7 @@ async def user_create(
         },
     )
     await db.commit()
-    return _redirect("/admin/users", f"Utilisateur {user.full_name} ({user.doctor_code}) créé.")
+    return _redirect(USERS_PAGE, f"Utilisateur {user.full_name} ({user.doctor_code}) créé.")
 
 
 @router.post("/users/{user_id}/reset-password")
@@ -302,7 +302,7 @@ async def user_toggle_active(
     """Activate / deactivate a user. Deactivation revokes their sessions."""
     user = await _get_user_or_404(db, user_id)
     if user.id == auth.real_user.id:
-        return _redirect("/admin/users", "Vous ne pouvez pas vous désactiver vous-même.", "error")
+        return _redirect(USERS_PAGE, "Vous ne pouvez pas vous désactiver vous-même.", "error")
     user.active = not user.active
     if not user.active:
         await revoke_user_sessions(db, user.id)
@@ -317,7 +317,7 @@ async def user_toggle_active(
     )
     await db.commit()
     return _redirect(
-        "/admin/users", "Utilisateur réactivé." if user.active else "Utilisateur désactivé."
+        USERS_PAGE, "Utilisateur réactivé." if user.active else "Utilisateur désactivé."
     )
 
 
@@ -328,7 +328,7 @@ async def user_delete(
     """Delete a user (sessions and reset tokens cascade)."""
     user = await _get_user_or_404(db, user_id)
     if user.id == auth.real_user.id:
-        return _redirect("/admin/users", "Vous ne pouvez pas vous supprimer vous-même.", "error")
+        return _redirect(USERS_PAGE, "Vous ne pouvez pas vous supprimer vous-même.", "error")
     audit.record(
         db,
         "user_deleted",
@@ -342,4 +342,4 @@ async def user_delete(
     name = user.full_name
     await db.delete(user)
     await db.commit()
-    return _redirect("/admin/users", f"Utilisateur {name} supprimé.")
+    return _redirect(USERS_PAGE, f"Utilisateur {name} supprimé.")

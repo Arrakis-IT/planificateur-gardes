@@ -131,6 +131,36 @@ class SaveResult:
     changed_cells: int
 
 
+def _code(codes: dict[uuid.UUID, str], user_id: uuid.UUID | None) -> str:
+    """Doctor code of a user id, "XX" for nobody."""
+    return codes.get(user_id, UNASSIGNED) if user_id else UNASSIGNED
+
+
+def _cell_change(
+    assignment: Assignment, draft: AssignmentDraft, codes: dict[uuid.UUID, str]
+) -> tuple[str, dict[str, object]] | None:
+    """Audit action and metadata for one drafted cell, or None if it changes nothing."""
+    doctor_changed = draft.user_id != assignment.user_id
+    onsite_changed = draft.onsite_removed != assignment.onsite_removed
+    if not (doctor_changed or onsite_changed):
+        return None
+    meta: dict[str, object] = {"date": assignment.date.isoformat()}
+    if doctor_changed:
+        meta |= {"old": _code(codes, assignment.user_id), "new": _code(codes, draft.user_id)}
+    if onsite_changed:
+        meta["onsite_removed"] = draft.onsite_removed
+    return ("assignment_edited" if doctor_changed else "onsite_toggled_result"), meta
+
+
+async def _assignments_for(
+    db: AsyncSession, generation_id: uuid.UUID, days: list[date]
+) -> dict[date, Assignment]:
+    stmt = select(Assignment).where(
+        Assignment.generation_id == generation_id, Assignment.date.in_(days)
+    )
+    return {a.date: a for a in (await db.scalars(stmt)).all()}
+
+
 async def save_draft(
     db: AsyncSession, clinic_id: uuid.UUID, actor: User, request: Request | None = None
 ) -> SaveResult:
@@ -144,41 +174,19 @@ async def save_draft(
         await drafts_repo.clear_drafts(db, clinic_id)
         return SaveResult(None, 0)
     drafts = await drafts_repo.drafts_by_date(db, clinic_id, generation.id)
-    assignments = {
-        a.date: a
-        for a in (
-            await db.scalars(
-                select(Assignment).where(
-                    Assignment.generation_id == generation.id,
-                    Assignment.date.in_(list(drafts)),
-                )
-            )
-        ).all()
-    }
+    assignments = await _assignments_for(db, generation.id, list(drafts))
     codes = {u.id: u.doctor_code for u in (await repo.users_by_id(db, clinic_id)).values()}
     now = datetime.now(UTC)
     changed = 0
     for day, draft in sorted(drafts.items()):
         assignment = assignments.get(day)
-        if assignment is None:
+        change = _cell_change(assignment, draft, codes) if assignment is not None else None
+        if assignment is None or change is None:
             continue
-        doctor_changed = draft.user_id != assignment.user_id
-        onsite_changed = draft.onsite_removed != assignment.onsite_removed
-        if not (doctor_changed or onsite_changed):
-            continue
-        meta: dict[str, object] = {"date": day.isoformat()}
-        if doctor_changed:
-            meta |= {
-                "old": codes.get(assignment.user_id, UNASSIGNED)
-                if assignment.user_id
-                else UNASSIGNED,
-                "new": codes.get(draft.user_id, UNASSIGNED) if draft.user_id else UNASSIGNED,
-            }
-        if onsite_changed:
-            meta["onsite_removed"] = draft.onsite_removed
+        action, meta = change
         audit.record(
             db,
-            "assignment_edited" if doctor_changed else "onsite_toggled_result",
+            action,
             request=request,
             user_id=actor.id,
             clinic_id=clinic_id,

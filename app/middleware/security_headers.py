@@ -25,6 +25,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import Settings, get_settings
 
+SELF_SOURCE = "'self'"
 TURNSTILE_ORIGIN = "https://challenges.cloudflare.com"
 HSTS = "max-age=63072000; includeSubDomains; preload"
 PERMISSIONS_POLICY = "geolocation=(), microphone=(), camera=(), payment=()"
@@ -32,21 +33,21 @@ PERMISSIONS_POLICY = "geolocation=(), microphone=(), camera=(), payment=()"
 
 def content_security_policy(settings: Settings) -> str:
     """The CSP header value for the current configuration."""
-    script_src = ["'self'"]
+    script_src = [SELF_SOURCE]
     directives: dict[str, list[str]] = {
-        "default-src": ["'self'"],
+        "default-src": [SELF_SOURCE],
         "script-src": script_src,
-        "style-src": ["'self'"],
+        "style-src": [SELF_SOURCE],
         "style-src-attr": ["'unsafe-inline'"],  # doctor colors, see module docstring
-        "img-src": ["'self'", "data:"],
-        "font-src": ["'self'"],
-        "connect-src": ["'self'"],  # HTMX requests and the SSE stream
-        "form-action": ["'self'"],
+        "img-src": [SELF_SOURCE, "data:"],
+        "font-src": [SELF_SOURCE],
+        "connect-src": [SELF_SOURCE],  # HTMX requests and the SSE stream
+        "form-action": [SELF_SOURCE],
         "frame-ancestors": ["'none'"],
-        "base-uri": ["'self'"],
+        "base-uri": [SELF_SOURCE],
         "object-src": ["'none'"],
-        "manifest-src": ["'self'"],
-        "worker-src": ["'self'"],
+        "manifest-src": [SELF_SOURCE],
+        "worker-src": [SELF_SOURCE],
     }
     if settings.turnstile_enabled:
         script_src.append(TURNSTILE_ORIGIN)

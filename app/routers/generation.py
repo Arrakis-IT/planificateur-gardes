@@ -28,6 +28,8 @@ from app.templating import render, set_flash
 
 router = APIRouter(tags=["generation"])
 
+NO_ACTIVE_PLANNING = "Aucune planification active."
+
 
 async def _doctors_context(
     db: DbSession, clinic_id: uuid.UUID, period_from: date, period_to: date
@@ -164,6 +166,9 @@ async def results(
         else None
     )
     filter_code = medecin if medecin in stats.users else None
+    # Edit links return to this very page (with its filter); none in read-only mode.
+    current_page = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+    return_to = None if auth.read_only else current_page
     return render(
         request,
         "app/results.html",
@@ -177,14 +182,12 @@ async def results(
             "filter_code": filter_code,
             "today": cal.today_local(),
             "draft_count": draft_count,
-            "return_to": None
-            if auth.read_only
-            else str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
+            "return_to": return_to,
         },
     )
 
 
-@router.get("/resultats/pdf")
+@router.get("/resultats/pdf", responses={404: {"description": NO_ACTIVE_PLANNING}})
 async def results_pdf(
     request: Request, auth: ClinicAuth, clinic_id: ClinicScope, db: DbSession
 ) -> Response:
@@ -192,7 +195,7 @@ async def results_pdf(
     generation = await repo.get_active_generation(db, clinic_id)
     clinic = auth.clinic
     if generation is None or clinic is None:
-        raise HTTPException(404, "Aucune planification active.")
+        raise HTTPException(404, NO_ACTIVE_PLANNING)
     generated_by = (
         await users_repo.get_user_in_clinic(db, clinic_id, generation.generated_by)
         if generation.generated_by

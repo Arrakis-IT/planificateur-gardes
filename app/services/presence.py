@@ -86,18 +86,21 @@ class PresenceHub:
     def sweep(self) -> None:
         """Expire sessions without heartbeat for PRESENCE_TTL; announce users who left."""
         now = self._clock()
-        for clinic_id in list(self._seen):
-            sessions = self._seen[clinic_id]
-            for session_id, (_, last) in list(sessions.items()):
-                if now - last > PRESENCE_TTL:
-                    del sessions[session_id]
+        emptied: list[uuid.UUID] = []
+        for clinic_id, sessions in self._seen.items():
+            # Collect first, delete after: never mutate a dict while iterating over it.
+            expired = [sid for sid, (_, last) in sessions.items() if now - last > PRESENCE_TTL]
+            for session_id in expired:
+                del sessions[session_id]
             still_here = {user.user_id for user, _ in sessions.values()}
             present = self._present.get(clinic_id, {})
             for user_id in [uid for uid in present if uid not in still_here]:
                 user = present.pop(user_id)
                 self.publish(clinic_id, "user_left", {"user": user.as_dict()})
             if not sessions:
-                del self._seen[clinic_id]
+                emptied.append(clinic_id)
+        for clinic_id in emptied:
+            del self._seen[clinic_id]
 
     async def run_sweeper(self) -> None:
         """Background loop (started in the app lifespan)."""
@@ -127,7 +130,7 @@ class PresenceHub:
         """Send an event to every open stream of the clinic (with the presence list)."""
         payload = {**data, "present": [u.as_dict() for u in self.present_users(clinic_id)]}
         message = (event, json.dumps(payload, ensure_ascii=False))
-        for connection in list(self._connections.get(clinic_id, ())):
+        for connection in self._connections.get(clinic_id, ()):
             try:
                 connection.queue.put_nowait(message)
             except asyncio.QueueFull:

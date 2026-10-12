@@ -12,7 +12,7 @@ redirects.
 import json
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -32,10 +32,19 @@ from app.services.planning import build_days
 from app.services.presence import hub
 from app.templating import render, set_flash
 
-router = APIRouter(prefix="/resultats", tags=["editing"])
+RESULTS_PATH = "/resultats"
+MONTH_PATH = "/mois"
+DEFAULT_RETURN = RESULTS_PATH
 
-DEFAULT_RETURN = "/resultats"
+router = APIRouter(prefix=RESULTS_PATH, tags=["editing"])
 NOT_IN_PLANNING = "Ce jour ne fait pas partie de la planification active."
+UNKNOWN_DOCTOR_MESSAGE = "Médecin inconnu dans ce cabinet."
+NOT_ONSITE_MESSAGE = "Ce jour n'est pas un jour sur place."
+
+# Documented error responses (OpenAPI).
+CELL_NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"description": NOT_IN_PLANNING}}
+UNKNOWN_DOCTOR: dict[int | str, dict[str, Any]] = {400: {"description": UNKNOWN_DOCTOR_MESSAGE}}
+NOT_ONSITE: dict[int | str, dict[str, Any]] = {400: {"description": NOT_ONSITE_MESSAGE}}
 
 
 def _is_htmx(request: Request) -> bool:
@@ -45,7 +54,7 @@ def _is_htmx(request: Request) -> bool:
 def _return_to(value: str | None) -> str:
     """Only the editable views are valid return targets."""
     target = safe_next_path(value)
-    return target if target.startswith(("/resultats", "/mois")) else DEFAULT_RETURN
+    return target if target.startswith((RESULTS_PATH, MONTH_PATH)) else DEFAULT_RETURN
 
 
 def _after_edit(request: Request, return_to: str) -> Response:
@@ -67,7 +76,7 @@ async def _broadcast_draft(
     )
 
 
-@router.get("/jour/{day}")
+@router.get("/jour/{day}", responses=CELL_NOT_FOUND)
 async def cell_modal(
     request: Request,
     day: date,
@@ -94,7 +103,7 @@ async def cell_modal(
     return render(request, template, context)
 
 
-@router.post("/jour/{day}")
+@router.post("/jour/{day}", responses=CELL_NOT_FOUND | UNKNOWN_DOCTOR)
 async def cell_set_doctor(
     request: Request,
     day: date,
@@ -109,13 +118,13 @@ async def cell_set_doctor(
     except editing.CellNotFoundError:
         raise HTTPException(404, NOT_IN_PLANNING) from None
     except editing.InvalidDoctorError:
-        raise HTTPException(400, "Médecin inconnu dans ce cabinet.") from None
+        raise HTTPException(400, UNKNOWN_DOCTOR_MESSAGE) from None
     await db.commit()
     await _broadcast_draft(db, clinic_id, auth, day)
     return _after_edit(request, _return_to(form.retour))
 
 
-@router.post("/jour/{day}/sur-place")
+@router.post("/jour/{day}/sur-place", responses=CELL_NOT_FOUND | NOT_ONSITE)
 async def cell_toggle_onsite(
     request: Request,
     day: date,
@@ -130,7 +139,7 @@ async def cell_toggle_onsite(
     except editing.CellNotFoundError:
         raise HTTPException(404, NOT_IN_PLANNING) from None
     except editing.NotOnsiteError:
-        raise HTTPException(400, "Ce jour n'est pas un jour sur place.") from None
+        raise HTTPException(400, NOT_ONSITE_MESSAGE) from None
     await db.commit()
     await _broadcast_draft(db, clinic_id, auth, day)
     return _after_edit(request, _return_to(form.retour))

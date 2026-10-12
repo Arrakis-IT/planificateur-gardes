@@ -30,10 +30,11 @@ from app.services.auth import SESSION_COOKIE_NAME, is_user_allowed, resolve_sess
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
-PASSWORD_CHANGE_PATH = "/parametres"  # noqa: S105 - URL path, not a secret
-# Reachable while `must_change_password` is set.
-PASSWORD_CHANGE_ALLOWED_PATHS = frozenset(
-    {PASSWORD_CHANGE_PATH, "/parametres/mot-de-passe", "/logout"}
+# Account settings page (password change). While `must_change_password` is set, only these
+# paths are reachable.
+ACCOUNT_SETTINGS_PATH = "/parametres"
+FORCED_CHANGE_ALLOWED_PATHS = frozenset(
+    {ACCOUNT_SETTINGS_PATH, f"{ACCOUNT_SETTINGS_PATH}/mot-de-passe", "/logout"}
 )
 READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -124,25 +125,22 @@ def safe_next_path(value: str | None) -> str:
     return value
 
 
-async def require_user(request: Request, auth: OptionalAuth) -> AuthContext:
+def require_user(request: Request, auth: OptionalAuth) -> AuthContext:
     """Authenticated user; anonymous → login page, forced password change → settings."""
     if auth is None:
         target = request.url.path
         if request.url.query:
             target += f"?{request.url.query}"
         raise RedirectError(f"/login?next={quote(target)}")
-    if (
-        auth.real_user.must_change_password
-        and request.url.path not in PASSWORD_CHANGE_ALLOWED_PATHS
-    ):
-        raise RedirectError(PASSWORD_CHANGE_PATH)
+    if auth.real_user.must_change_password and request.url.path not in FORCED_CHANGE_ALLOWED_PATHS:
+        raise RedirectError(ACCOUNT_SETTINGS_PATH)
     return auth
 
 
 CurrentAuth = Annotated[AuthContext, Depends(require_user)]
 
 
-async def require_superadmin(auth: CurrentAuth) -> AuthContext:
+def require_superadmin(auth: CurrentAuth) -> AuthContext:
     """Superadmin only (real user, so admin pages stay reachable while impersonating)."""
     if not auth.is_superadmin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Accès réservé à l'administrateur.")
@@ -152,7 +150,7 @@ async def require_superadmin(auth: CurrentAuth) -> AuthContext:
 SuperadminAuth = Annotated[AuthContext, Depends(require_superadmin)]
 
 
-async def require_clinic_user(request: Request, auth: CurrentAuth) -> AuthContext:
+def require_clinic_user(request: Request, auth: CurrentAuth) -> AuthContext:
     """Clinic context: clinic user, impersonating superadmin, or read-only view (GET only)."""
     if auth.read_only:
         if request.method not in READ_METHODS:
@@ -169,7 +167,7 @@ async def require_clinic_user(request: Request, auth: CurrentAuth) -> AuthContex
 ClinicAuth = Annotated[AuthContext, Depends(require_clinic_user)]
 
 
-async def clinic_scope(auth: ClinicAuth) -> uuid.UUID:
+def clinic_scope(auth: ClinicAuth) -> uuid.UUID:
     """The clinic every scoped query of this request must filter on."""
     clinic = auth.clinic
     if clinic is None:  # pragma: no cover - excluded by require_clinic_user

@@ -11,7 +11,7 @@ from starlette.responses import Response
 
 from app.config import Settings
 from app.dependencies import (
-    PASSWORD_CHANGE_PATH,
+    ACCOUNT_SETTINGS_PATH,
     AppSettings,
     DbSession,
     OptionalAuth,
@@ -39,6 +39,7 @@ router = APIRouter(tags=["auth"])
 Turnstile = Annotated[TurnstileVerifier, Depends(get_turnstile_verifier)]
 Mailer = Annotated[MailSender, Depends(get_mail_sender)]
 
+LOGIN_TEMPLATE = "auth/login.html"
 TURNSTILE_ERROR = "La vérification anti-robot a échoué. Veuillez réessayer."
 
 
@@ -60,7 +61,7 @@ async def login_page(request: Request, auth: OptionalAuth, next: str = "/") -> R
     """Login form; already authenticated users go straight to their target."""
     if auth is not None:
         return RedirectResponse(safe_next_path(next), status_code=303)
-    return render(request, "auth/login.html", {"next": safe_next_path(next)})
+    return render(request, LOGIN_TEMPLATE, {"next": safe_next_path(next)})
 
 
 @router.post("/login")
@@ -77,12 +78,12 @@ async def login(
     next_path = safe_next_path(form.next)
     context = {"next": next_path, "email": form.email}
     if not await turnstile.verify(form.turnstile, audit.client_ip(request)):
-        return render(request, "auth/login.html", context | {"error": TURNSTILE_ERROR}, 400)
+        return render(request, LOGIN_TEMPLATE, context | {"error": TURNSTILE_ERROR}, 400)
 
     result = await authenticate(db, form.email, form.password, settings, request)
     if result.user is None:
         await db.commit()  # persist the audit trail of the failure
-        return render(request, "auth/login.html", context | {"error": result.error}, 401)
+        return render(request, LOGIN_TEMPLATE, context | {"error": result.error}, 401)
 
     # Session rotation: drop any session the browser already had.
     if auth is not None:
@@ -90,7 +91,7 @@ async def login(
     cookie = await create_session(db, result.user, settings, request)
     await db.commit()
 
-    target = PASSWORD_CHANGE_PATH if result.user.must_change_password else next_path
+    target = ACCOUNT_SETTINGS_PATH if result.user.must_change_password else next_path
     if result.user.is_superadmin and target == "/":
         target = "/admin"
     response = RedirectResponse(target, status_code=303)

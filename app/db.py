@@ -54,9 +54,8 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 async def check_database() -> bool:
     """Return True if the database answers `SELECT 1` within the timeout."""
     try:
-        async with asyncio.timeout(DB_CHECK_TIMEOUT_SECONDS):
-            async with get_engine().connect() as conn:
-                await conn.execute(text("SELECT 1"))
+        async with asyncio.timeout(DB_CHECK_TIMEOUT_SECONDS), get_engine().connect() as conn:
+            await conn.execute(text("SELECT 1"))
     except Exception as exc:
         # Log only the exception type: driver messages may include connection details.
         logger.warning("Database health check failed: %s", type(exc).__name__)

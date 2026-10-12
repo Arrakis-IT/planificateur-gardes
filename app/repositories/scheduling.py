@@ -141,7 +141,7 @@ async def custom_holidays(
     stmt = select(CustomHoliday.date, CustomHoliday.label).where(
         CustomHoliday.clinic_id == clinic_id, CustomHoliday.date.between(start, end)
     )
-    return {day: label for day, label in (await db.execute(stmt)).all()}
+    return dict((await db.execute(stmt)).all())
 
 
 # --- Generations / assignments ----------------------------------------------------------------

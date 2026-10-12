@@ -10,7 +10,8 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SECRET_KEY_MIN_LENGTH = 32
-DEV_SECRET_KEY_PREFIX = "dev-only-"  # noqa: S105 - marker of the dev placeholder, not a secret
+# Prefix of the development placeholder values shipped in .env.example (refused in production).
+DEV_ONLY_PREFIX = "dev-only-"
 
 
 class Settings(BaseSettings):
@@ -89,7 +90,7 @@ class Settings(BaseSettings):
         Minimum length is enforced for every environment by the field constraint.
         """
         secret = self.app_secret_key.get_secret_value()
-        if self.is_production and secret.startswith(DEV_SECRET_KEY_PREFIX):
+        if self.is_production and secret.startswith(DEV_ONLY_PREFIX):
             raise ValueError(
                 'APP_SECRET_KEY must not start with "dev-only-" in production. '
                 'Generate one with: python3 -c "import secrets; print(secrets.token_urlsafe(64))"'
@@ -103,7 +104,7 @@ class Settings(BaseSettings):
         if (
             self.is_production
             and password is not None
-            and password.get_secret_value().startswith(DEV_SECRET_KEY_PREFIX)
+            and password.get_secret_value().startswith(DEV_ONLY_PREFIX)
         ):
             raise ValueError(
                 'INITIAL_SUPERADMIN_PASSWORD must not start with "dev-only-" in production.'

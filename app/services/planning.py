@@ -43,7 +43,7 @@ class DayView:
     holiday: str | None  # public / custom holiday label
     onsite: bool  # effective on-site (settings minus "removed in results")
     planned: bool  # covered by the active generation
-    doctor: User | None  # None + planned = unassigned ("XX")
+    doctor: User | None  # no doctor on a planned day means "unassigned" (XX)
     drafted: bool = False  # shows a not yet saved edit of the shared draft
     onsite_setting: bool = False  # marked on-site in the clinic settings
 
