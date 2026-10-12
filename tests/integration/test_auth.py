@@ -90,29 +90,26 @@ async def test_inactive_user_or_clinic_cannot_login(client, db, make_clinic, mak
     assert response.status_code == 401
 
 
-async def test_account_locks_after_threshold_failures(client, db, make_clinic, make_user):
+async def test_account_locks_after_threshold_failures(
+    client, db, make_clinic, make_user, monkeypatch
+):
     clinic = await make_clinic()
     user = await make_user("doc@example.lu", clinic=clinic)
     # Bypass the per-IP limit (5/min) to reach the per-account threshold (10).
-    limiter.enabled = False
-    try:
-        for _ in range(10):
-            await login(client, "doc@example.lu", "wrong-password-xyz")
-        assert await _actions(db, "account_locked") == 1
-        # Even the right password is refused while locked.
-        response = await login(client, "doc@example.lu")
-        assert response.status_code == 401
+    monkeypatch.setattr(limiter, "enabled", False)
+    for _ in range(10):
+        await login(client, "doc@example.lu", "wrong-password-xyz")
+    assert await _actions(db, "account_locked") == 1
+    # Even the right password is refused while locked.
+    response = await login(client, "doc@example.lu")
+    assert response.status_code == 401
 
-        # Lock expires after LOGIN_LOCK_MINUTES.
-        past = datetime.now(UTC) - timedelta(minutes=16)
-        await db.execute(
-            update(AuditLog).where(AuditLog.user_id == user.id).values(created_at=past)
-        )
-        await db.commit()
-        response = await login(client, "doc@example.lu")
-        assert response.status_code == 303
-    finally:
-        limiter.enabled = True
+    # Lock expires after LOGIN_LOCK_MINUTES.
+    past = datetime.now(UTC) - timedelta(minutes=16)
+    await db.execute(update(AuditLog).where(AuditLog.user_id == user.id).values(created_at=past))
+    await db.commit()
+    response = await login(client, "doc@example.lu")
+    assert response.status_code == 303
 
 
 async def test_login_rate_limited_per_ip(client, db):

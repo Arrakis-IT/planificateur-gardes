@@ -62,8 +62,9 @@ RUN --mount=type=cache,target=/root/.cache/pypoetry \
 
 # --- Dev ----------------------------------------------------------------------
 FROM builder AS dev
+# Wheels only, stated on the command itself (also inherited from the builder ENV).
 RUN --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-root --with dev
+    POETRY_INSTALLER_ONLY_BINARY=:all: poetry install --no-root --with dev
 COPY . .
 RUN chmod +x docker/entrypoint.sh
 # Writable cache for `poetry run` as the non-root user.

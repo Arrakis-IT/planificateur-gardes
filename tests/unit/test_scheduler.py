@@ -275,8 +275,9 @@ def test_same_seed_same_output():
 )
 def test_invalid_requests(overrides, message):
     base = {"period_from": START, "period_to": END, "doctors": DOCTORS}
+    request = ScheduleRequest(**(base | overrides))
     with pytest.raises(ScheduleInputError, match=message):
-        generate_schedule(ScheduleRequest(**(base | overrides)))
+        generate_schedule(request)
 
 
 def test_single_day_period():

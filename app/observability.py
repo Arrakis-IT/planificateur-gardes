@@ -44,12 +44,13 @@ SAFE_HEADERS = frozenset(
     }
 )
 # Masking patterns, written to run in linear time on hostile input (no backtracking):
-# possessive quantifiers (`++`, `{m,n}+`, Python ≥ 3.11) never give characters back, and the
-# leading look-behinds only let a match start at the beginning of a run, so a long run without
-# "@" (or ":") is scanned once instead of once per position.
-_EMAIL_RE = re.compile(
-    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@(?:[A-Za-z0-9-]++\.)++[A-Za-z]{2,}+"
-)
+# * e-mail: unambiguous structure — the local part stops at "@" (not in its class) and domain
+#   labels are always separated by a "." that no label class contains, so no two repetitions
+#   can compete for the same characters (works without possessive quantifiers);
+# * look-behinds only let a match start at the beginning of a run, so a long run without "@"
+#   (or ":") is scanned once instead of once per position;
+# * possessive quantifiers (`{m,n}+`, Python ≥ 3.11) where repetitions are bounded.
+_EMAIL_RE = re.compile(r"(?<![\w.%+-])[\w.%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 _IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}+\.){3}\d{1,3}+(?!\.?\d)")
 # IPv6 candidates (incl. compressed "::" forms), confirmed with the ipaddress module so that
 # e.g. clock times like "12:30:45" are left alone.
