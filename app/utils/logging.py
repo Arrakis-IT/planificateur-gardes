@@ -9,6 +9,8 @@ import sys
 from datetime import UTC, datetime
 from typing import Any
 
+NOISY_LOGGERS = ("weasyprint", "fontTools")
+
 
 class JsonFormatter(logging.Formatter):
     """Render log records as single-line JSON."""
@@ -35,3 +37,6 @@ def configure_logging(level: str, json_output: bool) -> None:
     root = logging.getLogger()
     root.handlers[:] = [handler]
     root.setLevel(level.upper())
+    # Chatty third-party loggers (WeasyPrint logs every rendering step at INFO).
+    for name in NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)

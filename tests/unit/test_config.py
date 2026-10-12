@@ -107,3 +107,4 @@ def test_configure_logging_sets_level():
     assert logging.getLogger().level == logging.WARNING
     configure_logging("info", json_output=False)
     assert logging.getLogger().level == logging.INFO
+    assert logging.getLogger("weasyprint").level == logging.WARNING
