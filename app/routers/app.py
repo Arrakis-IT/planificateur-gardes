@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from starlette.responses import Response
 
 from app.dependencies import ClinicAuth, ClinicScope, DbSession
+from app.repositories import drafts as drafts_repo
 from app.services import calendar as cal
 from app.services.planning import build_days
 from app.templating import render
@@ -67,11 +68,13 @@ async def month(
     today = cal.today_local()
     first = cal.parse_month(mois, today)
     last = cal.add_months(first, 1) - timedelta(days=1)
-    days = await build_days(db, clinic_id, first, last)
+    days = await build_days(db, clinic_id, first, last, with_draft=True)
     return render(
         request,
         "app/month.html",
         {
+            "draft_count": await drafts_repo.count_drafts(db, clinic_id),
+            "return_to": f"/mois?mois={first:%Y-%m}",
             "first": first,
             "weeks": cal.month_weeks(first),
             "days": days,

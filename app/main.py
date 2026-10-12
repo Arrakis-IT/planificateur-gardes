@@ -22,9 +22,10 @@ from app.dependencies import RedirectError
 from app.middleware.csrf import CSRFCookieMiddleware, verify_csrf
 from app.middleware.rate_limit import limiter
 from app.repositories.scope import NoClinicScopeError
-from app.routers import account, admin, auth, generation, health, holidays
+from app.routers import account, admin, auth, editing, generation, health, holidays, sse
 from app.routers import app as app_router
 from app.services.bootstrap import ensure_initial_superadmin
+from app.services.presence import hub
 from app.templating import render
 from app.utils.logging import configure_logging
 
@@ -43,7 +44,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         # Never prevent startup (healthcheck will report DB problems).
         logger.exception("Superadmin bootstrap failed")
+    hub.start()
     yield
+    await hub.stop()
     await dispose_engine()
     logger.info("Application stopped")
 
@@ -108,7 +111,9 @@ def create_app() -> FastAPI:
     app.include_router(account.router)
     app.include_router(admin.router)
     app.include_router(holidays.router)
+    app.include_router(editing.router)
     app.include_router(generation.router)
+    app.include_router(sse.router)
     app.include_router(app_router.router)
     return app
 

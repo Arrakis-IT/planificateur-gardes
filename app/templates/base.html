@@ -6,16 +6,21 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>{% block title %}Planificateur des gardes{% endblock %} — Arrakis IT</title>
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <script src="{{ url_for('static', path='js/htmx.min.js') }}" defer></script>
+  <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
   {% block head %}{% endblock %}
 </head>
-<body hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'>
+{% set live = auth and auth.user.clinic and not auth.user.is_superadmin and not auth.user.must_change_password %}
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'
+      {% if live %}data-live="true" data-self="{{ auth.user.doctor_code }}"{% endif %}>
   <div class="app">
     <header class="topbar">
       <div class="brand">
         <a href="/" class="brand-link">Planificateur des gardes</a>
         {% if auth and auth.user.clinic %}<span class="subtitle">{{ auth.user.clinic.name }}</span>{% endif %}
         {% if auth and auth.user.is_superadmin %}<span class="subtitle">Administration</span>{% endif %}
+        {% if live %}<span id="presence" class="presence" aria-live="polite" hidden></span>{% endif %}
       </div>
       {% if auth %}
       <nav class="nav">
@@ -49,5 +54,6 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <div id="modal"></div>
 </body>
 </html>

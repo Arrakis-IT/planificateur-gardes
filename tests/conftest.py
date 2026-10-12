@@ -96,6 +96,15 @@ def turnstile() -> FakeTurnstile:
 
 
 @pytest.fixture(autouse=True)
+def _reset_presence():
+    from app.services.presence import hub
+
+    hub.reset()
+    yield
+    hub.reset()
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limits():
     limiter.reset()
     yield

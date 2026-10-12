@@ -97,3 +97,18 @@ class GenerateForm(_Form):
     period_from: date_type
     period_to: date_type
     confirm_overwrite: bool = False
+
+
+ReturnTo = Annotated[str, StringConstraints(max_length=2048)]
+
+
+class ReturnToForm(_Form):
+    """Forms that send the user back to the editable view they came from."""
+
+    retour: ReturnTo | None = None
+
+
+class CellDoctorForm(ReturnToForm):
+    """POST /resultats/jour/{day}: doctor code or "XX"."""
+
+    doctor: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=3)]

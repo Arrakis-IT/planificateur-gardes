@@ -2,11 +2,12 @@
 
 Items to resolve in later phases. Move them to GitHub issues once the repository is published.
 
-## Phase 6 — Isolation of assignment edits
+## Deployment notes (live channel, phase 6)
 
-Draft edits will address assignments (by date or id). Resolve them through the clinic's
-active generation (`generation.clinic_id == scope`), never by bare id, and add the new routes
-to `CROSS_CLINIC_CASES` in `tests/integration/test_isolation.py`.
+- Presence and SSE fan-out live in the app process: keep **one uvicorn worker**. Scaling
+  out needs a shared channel (PostgreSQL LISTEN/NOTIFY) — see `app/services/presence.py`.
+- Reverse proxy for `/sse/presence`: `proxy_buffering off;`, `proxy_read_timeout` > 15 s
+  (keep-alive ping interval), HTTP/1.1 with `Connection ""`.
 
 ## Phase 9 — CSP
 
@@ -16,7 +17,6 @@ Clean alternative: generate per-doctor CSS classes in a stylesheet regenerated w
 are added or edited. Decide in Phase 9.
 
 Also for the CSP:
-- HTMX injects a `<style>` element for request indicators unless disabled with
-  `<meta name="htmx-config" content='{"includeIndicatorStyles": false}'>`; disable it rather
-  than allowing inline styles.
+- HTMX indicator styles are already disabled (`htmx-config` meta in `base.html`), so HTMX
+  needs no inline style; `app.js` has no inline handlers either.
 - Turnstile needs `script-src` and `frame-src https://challenges.cloudflare.com`.

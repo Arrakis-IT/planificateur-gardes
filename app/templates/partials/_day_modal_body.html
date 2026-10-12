@@ -1,0 +1,31 @@
+<h3>Modifier l'affectation</h3>
+<div class="modal-date">{{ day.day|long_date }}{% if day.holiday %} · {{ day.holiday }}{% endif %}</div>
+<form method="post" action="/resultats/jour/{{ day.day.isoformat() }}"
+      hx-post="/resultats/jour/{{ day.day.isoformat() }}" hx-swap="none">
+  {{ csrf_input(request) }}
+  <input type="hidden" name="retour" value="{{ return_to }}">
+  <div class="modal-options">
+    {% for doctor, on_vacation in doctors %}
+      <button type="submit" name="doctor" value="{{ doctor.doctor_code }}"
+              class="modal-option{{ ' selected' if cell.user_id == doctor.id }}">
+        <span><span class="code" style="--doctor-color: {{ doctor.color }}">{{ doctor.doctor_code }}</span>
+          <span class="opt-name">{{ doctor.full_name }}</span></span>
+        {% if on_vacation %}<span class="opt-tag">en congés</span>{% endif %}
+      </button>
+    {% endfor %}
+    <button type="submit" name="doctor" value="XX" class="modal-option none{{ ' selected' if not cell.user_id }}">
+      Aucune affectation (XX)
+    </button>
+  </div>
+</form>
+{% if day.onsite_setting %}
+<hr class="modal-divider">
+<form method="post" action="/resultats/jour/{{ day.day.isoformat() }}/sur-place"
+      hx-post="/resultats/jour/{{ day.day.isoformat() }}/sur-place" hx-swap="none" class="modal-onsite-row">
+  {{ csrf_input(request) }}
+  <input type="hidden" name="retour" value="{{ return_to }}">
+  <span><strong>Jour sur place</strong>{% if not day.onsite %} <em class="muted">(retiré)</em>{% endif %}</span>
+  <button type="submit">{{ 'Retirer' if day.onsite else 'Restaurer' }}</button>
+</form>
+{% endif %}
+<p class="muted small">Les modifications forment un brouillon commun au cabinet : elles ne sont appliquées qu'après « Enregistrer les modifications ».</p>

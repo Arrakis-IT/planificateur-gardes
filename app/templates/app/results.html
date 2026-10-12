@@ -8,6 +8,8 @@
   <p class="empty-state">Aucune planification générée. <a href="/generer">Générer une planification</a>.</p>
 </section>
 {% else %}
+<div id="planning">
+{% include "partials/_draft_banner.html" %}
 <section class="panel">
   <div class="panel-header">
     <h1>Planification du {{ generation.period_from|short_date }} au {{ generation.period_to|short_date }}</h1>
@@ -18,7 +20,7 @@
     le {{ generation.generated_at|local_datetime }}.
   </p>
 
-  <h2>Statistiques</h2>
+  <h2>Statistiques{% if draft_count %} <span class="badge warn">avec les modifications non enregistrées</span>{% endif %}</h2>
   {% set s = stats %}
   <div class="table-scroll">
   <table class="table stats-table">
@@ -68,10 +70,11 @@
     {% for first in months %}
       <div class="month-block">
         <div class="month-title capitalize">{{ first|month_label }}</div>
-        {{ m.month_grid(first, month_weeks(first), days, today, filter_code) }}
+        {{ m.month_grid(first, month_weeks(first), days, today, filter_code, return_to) }}
       </div>
     {% endfor %}
   </div>
 </section>
+</div>
 {% endif %}
 {% endblock %}

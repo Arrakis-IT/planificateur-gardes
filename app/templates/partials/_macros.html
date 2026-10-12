@@ -11,7 +11,7 @@
 {%- endmacro %}
 
 {# Month grid of the planning (dashboard month view and results). #}
-{% macro month_grid(first, weeks, days, today, filter_code=None) -%}
+{% macro month_grid(first, weeks, days, today, filter_code=None, return_to=None) -%}
 <div class="month-grid">
   {% for name in WEEKDAYS_SHORT_FR %}<div class="cal-header">{{ name }}</div>{% endfor %}
   {% for week in weeks %}
@@ -21,8 +21,12 @@
         <div class="month-cell empty"></div>
       {% else %}
         {% set filtered_out = filter_code and (not day.doctor or day.doctor.doctor_code != filter_code) %}
-        <div class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}"
-             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}">
+        {% set editable = return_to and day.planned %}
+        {% set tag = 'a' if editable else 'div' %}
+        <{{ tag }} class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}{{ ' drafted' if day.drafted }}{{ ' clickable' if editable }}"
+             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}{{ ' — modification non enregistrée' if day.drafted }}"
+             {% if editable %}href="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}"
+             hx-get="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}" hx-target="#modal" hx-swap="innerHTML"{% endif %}>
           <div class="cell-date">{{ d.day }}</div>
           {% if day.doctor %}
             <div class="cell-doctor" style="--doctor-color: {{ day.doctor.color }}">{{ day.doctor.doctor_code }}</div>
@@ -31,7 +35,7 @@
           {% else %}
             <div class="cell-doctor none">—</div>
           {% endif %}
-        </div>
+        </{{ tag }}>
       {% endif %}
     {% endfor %}
   {% endfor %}

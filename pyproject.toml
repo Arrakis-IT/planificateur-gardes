@@ -33,6 +33,7 @@ slowapi = "~0.1.10"
 email-validator = "^2.3"
 python-dateutil = "^2.9"
 weasyprint = "^70.0"
+sse-starlette = "^3.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4"

@@ -122,3 +122,32 @@ class Assignment(UUIDPrimaryKeyMixin, Base):
     onsite_removed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AssignmentDraft(UUIDPrimaryKeyMixin, Base):
+    """Shared, not yet saved edit of one cell of the clinic's active generation.
+
+    One row per edited date holds the desired final state of the cell (doctor and
+    on-site flag). All rows of a clinic form its single collective draft.
+
+    Why a table (and not a JSON field on `generation`): row-level upserts keep concurrent
+    editors from overwriting each other's cells, foreign keys keep doctors valid, and the
+    draft survives restarts and is visible to every user of the clinic.
+    """
+
+    __tablename__ = "assignment_draft"
+    __table_args__ = (UniqueConstraint("generation_id", "date"),)
+
+    clinic_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("clinic.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    generation_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("generation.id", ondelete="CASCADE"), nullable=False
+    )
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    onsite_removed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    edited_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

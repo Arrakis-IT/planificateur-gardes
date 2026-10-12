@@ -13,14 +13,17 @@ from starlette.responses import Response
 
 from app.db import get_sessionmaker
 from app.dependencies import ClinicAuth, ClinicScope, DbSession
+from app.repositories import drafts as drafts_repo
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
+from app.routers.sse import present_user
 from app.schemas.forms import GenerateForm
 from app.services import calendar as cal
 from app.services.mail import MailSender, get_mail_sender
 from app.services.notifications import send_schedule_notification
 from app.services.pdf import build_schedule_pdf, pdf_filename
 from app.services.planning import GenerationError, build_days, results_stats, run_generation
+from app.services.presence import hub
 from app.templating import render, set_flash
 
 router = APIRouter(tags=["generation"])
@@ -118,6 +121,12 @@ async def generate(
             request, clinic_id, db, form.period_from, form.period_to, {"error": str(exc)}, 400
         )
     await db.commit()
+    # Open pages reload their planning; any shared draft was dropped with the old generation.
+    hub.publish(
+        clinic_id,
+        "draft_cleared",
+        {"reason": "regenerated", "changed": 0, "by": present_user(auth.user).as_dict()},
+    )
     background.add_task(
         send_schedule_notification,
         get_sessionmaker(),
@@ -144,8 +153,11 @@ async def results(
     generation = await repo.get_active_generation(db, clinic_id)
     if generation is None:
         return render(request, "app/results.html", {"generation": None})
-    days = await build_days(db, clinic_id, generation.period_from, generation.period_to)
-    stats = await results_stats(db, clinic_id, generation)
+    days = await build_days(
+        db, clinic_id, generation.period_from, generation.period_to, with_draft=True
+    )
+    stats = await results_stats(db, clinic_id, generation, with_draft=True)
+    draft_count = await drafts_repo.count_drafts(db, clinic_id)
     generated_by = (
         await users_repo.get_user_in_clinic(db, clinic_id, generation.generated_by)
         if generation.generated_by
@@ -164,6 +176,9 @@ async def results(
             "users": stats.users,
             "filter_code": filter_code,
             "today": cal.today_local(),
+            "draft_count": draft_count,
+            "return_to": str(request.url.path)
+            + (f"?{request.url.query}" if request.url.query else ""),
         },
     )
 

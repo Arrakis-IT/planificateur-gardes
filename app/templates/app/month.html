@@ -11,7 +11,10 @@
       <a href="/mois?mois={{ next.strftime('%Y-%m') }}">mois suivant ›</a>
     </nav>
   </div>
-  {% include "partials/_legend.html" %}
-  {{ m.month_grid(first, month_weeks(first), days, today) }}
+  <div id="planning">
+    {% include "partials/_draft_banner.html" %}
+    {% include "partials/_legend.html" %}
+    {{ m.month_grid(first, month_weeks(first), days, today, return_to=return_to) }}
+  </div>
 </section>
 {% endblock %}
