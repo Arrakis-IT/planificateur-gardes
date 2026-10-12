@@ -1,3 +1,6 @@
+# Vendored third-party files must stay byte-identical to their upstream release.
+exclude: ^app/static/(js/htmx\.min\.js|fonts/|icons/.*\.png)$|^LICENSE$
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -10,22 +13,31 @@ repos:
       - id: detect-private-key
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+    rev: v0.17.0
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.20.2
     hooks:
       - id: mypy
         files: ^app/
+        args: [--config-file=pyproject.toml]
         additional_dependencies:
-          - pydantic>=2.9
-          - pydantic-settings>=2.6
-          - sqlalchemy[asyncio]>=2.0.36
-          - fastapi>=0.115
+          - pydantic>=2.14
+          - pydantic-settings>=2.15
+          - sqlalchemy[asyncio]>=2.1
+          - fastapi>=0.143
+          - jinja2>=3.1
+          - itsdangerous>=2.2
+          - argon2-cffi>=25.1
+          - httpx>=0.28
+          - slowapi>=0.1.10
+          - sse-starlette>=3.5
+          - sentry-sdk[fastapi]>=2.71
+          - types-python-dateutil>=2.9
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.21.2
