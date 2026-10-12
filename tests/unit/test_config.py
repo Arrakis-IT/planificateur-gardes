@@ -85,6 +85,15 @@ def test_production_requires_public_https_base_url(monkeypatch, base_url):
         Settings()
 
 
+def test_dev_bootstrap_password_rejected_in_production(monkeypatch):
+    _set_env(monkeypatch, "production", secrets.token_hex(32))
+    monkeypatch.setenv("INITIAL_SUPERADMIN_PASSWORD", "dev-only-admin-password")
+    with pytest.raises(ValidationError, match="INITIAL_SUPERADMIN_PASSWORD"):
+        Settings()
+    monkeypatch.setenv("APP_ENV", "development")
+    assert Settings().initial_superadmin_password is not None
+
+
 def test_json_formatter_outputs_single_line_json():
     record = logging.LogRecord("t", logging.INFO, __file__, 1, "hello %s", ("world",), None)
     line = JsonFormatter().format(record)

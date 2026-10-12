@@ -97,6 +97,20 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _reject_dev_bootstrap_password_in_production(self) -> Self:
+        """The dev bootstrap password of .env.example must never create a production admin."""
+        password = self.initial_superadmin_password
+        if (
+            self.is_production
+            and password is not None
+            and password.get_secret_value().startswith(DEV_SECRET_KEY_PREFIX)
+        ):
+            raise ValueError(
+                'INITIAL_SUPERADMIN_PASSWORD must not start with "dev-only-" in production.'
+            )
+        return self
+
+    @model_validator(mode="after")
     def _require_public_base_url_in_production(self) -> Self:
         """Emailed links (reset, schedule) are built from APP_BASE_URL: no localhost in prod."""
         url = self.app_base_url.lower()
