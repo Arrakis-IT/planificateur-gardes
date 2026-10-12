@@ -208,3 +208,4 @@ This project is licensed under the GNU Affero General Public License v3 or later
   [Pydantic](https://docs.pydantic.dev) (MIT), [Alembic](https://alembic.sqlalchemy.org) (MIT).
 - The scheduling algorithm comes from the original Excel/VBA tool and its standalone JavaScript
   version (gardes.arrakis.lu/gratis).
+
