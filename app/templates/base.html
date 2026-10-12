@@ -63,7 +63,7 @@
     </header>
 
     {% if flash %}
-      <div class="alert alert-{{ flash.level }}" role="status">{{ flash.message }}</div>
+      <output class="alert alert-{{ flash.level }}">{{ flash.message }}</output>
     {% endif %}
 
     <main>

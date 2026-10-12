@@ -15,6 +15,7 @@
 <section class="panel">
   <h2>Générations par cabinet (30 jours)</h2>
   <table class="table">
+    <thead><tr><th>Cabinet</th><th class="num">Générations</th></tr></thead>
     <tbody>
     {% for clinic, n in s.generations_by_clinic %}
       <tr><td><a href="/admin/clinic/{{ clinic.id }}/generations">{{ clinic.name }}</a></td><td class="num">{{ n }}</td></tr>
@@ -26,6 +27,7 @@
 <section class="panel">
   <h2>10 dernières connexions échouées</h2>
   <table class="table">
+    <thead><tr><th>Date</th><th>Utilisateur</th><th>Motif</th><th>IP</th></tr></thead>
     <tbody>
     {% for e in s.failed_logins %}
       <tr>
@@ -44,6 +46,7 @@
 <section class="panel">
   <h2>10 dernières erreurs d'envoi d'e-mail</h2>
   <table class="table">
+    <thead><tr><th>Date</th><th>Destinataire</th><th>Erreur</th></tr></thead>
     <tbody>
     {% for e, r in s.email_errors %}
       <tr>

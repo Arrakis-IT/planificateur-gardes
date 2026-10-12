@@ -1,7 +1,7 @@
 {% if draft_count %}
-<div class="draft-banner" role="status">
-  <span><strong>{{ draft_count }}</strong> modification{{ 's' if draft_count > 1 }} non enregistrée{{ 's' if draft_count > 1 }}
-    <span class="muted">— visibles par tous les médecins du cabinet</span></span>
+<div class="draft-banner">
+  <output><strong>{{ draft_count }}</strong> modification{{ 's' if draft_count > 1 }} non enregistrée{{ 's' if draft_count > 1 }}
+    <span class="muted">— visibles par tous les médecins du cabinet</span></output>
   {% if not auth.read_only %}
   <span class="draft-actions">
     <form method="post" action="/resultats/enregistrer" class="inline">

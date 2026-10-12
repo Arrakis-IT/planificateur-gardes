@@ -1,16 +1,16 @@
 {# Superadmin mode banner, on every page while impersonating or viewing a clinic read-only. #}
 {% if auth.impersonating %}
-<div class="mode-banner impersonating" role="status">
-  <span>🎭 Vous agissez en tant que <strong>{{ auth.user.full_name }}</strong> ({{ auth.user.doctor_code }})
-    — {{ auth.clinic.name if auth.clinic else '' }}</span>
+<div class="mode-banner impersonating">
+  <output>🎭 Vous agissez en tant que <strong>{{ auth.user.full_name }}</strong> ({{ auth.user.doctor_code }})
+    — {{ auth.clinic.name if auth.clinic else '' }}</output>
   <form method="post" action="/admin/impersonate/exit" class="inline">
     {{ csrf_input(request) }}
     <button type="submit">Quitter</button>
   </form>
 </div>
 {% else %}
-<div class="mode-banner read-only" role="status">
-  <span>👁 Mode lecture — <strong>{{ auth.clinic.name }}</strong> · aucune modification possible</span>
+<div class="mode-banner read-only">
+  <output>👁 Mode lecture — <strong>{{ auth.clinic.name }}</strong> · aucune modification possible</output>
   <form method="post" action="/admin/view/exit" class="inline">
     {{ csrf_input(request) }}
     <button type="submit">Quitter</button>
