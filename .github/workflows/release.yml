@@ -7,8 +7,7 @@ on:
     tags: ["v*"]
 
 permissions:
-  contents: read
-  packages: write # push to ghcr.io with the built-in GITHUB_TOKEN
+  contents: read # minimum needed for workflow trigger metadata
 
 concurrency:
   group: release-${{ github.ref }}
@@ -21,8 +20,13 @@ jobs:
   image:
     name: Build and push image
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # only this job pushes to ghcr.io (built-in GITHUB_TOKEN)
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # arm64 is built through QEMU emulation: all dependencies ship arm64 wheels / Debian
       # packages, so it only costs build time (Hetzner ARM servers and Apple Silicon dev).
