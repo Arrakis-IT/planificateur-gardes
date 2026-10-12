@@ -28,6 +28,10 @@ FLASH_MAX_AGE_SECONDS = 60
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Emails: HTML parts autoescaped, plain-text parts rendered verbatim.
+# NOTE: autoescape scoped to HTML on purpose. The email/ folder also contains
+# plain-text (.txt) templates that must NOT escape HTML entities. The current
+# config correctly enables escape only for .html. Acknowledged in Aikido
+# (Jinja2 XSS rule) as a scoped, intentional configuration.
 email_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATES_DIR / "email"),
     autoescape=jinja2.select_autoescape(enabled_extensions=("html",), default=False),
