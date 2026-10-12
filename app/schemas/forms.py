@@ -112,3 +112,16 @@ class CellDoctorForm(ReturnToForm):
     """POST /resultats/jour/{day}: doctor code or "XX"."""
 
     doctor: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=3)]
+
+
+class CustomHolidayForm(_Form):
+    """POST /admin/clinic/{id}/holidays."""
+
+    date: date_type
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+
+class ReauthForm(_Form):
+    """Destructive admin actions ask the superadmin's password again."""
+
+    password: Password = ""

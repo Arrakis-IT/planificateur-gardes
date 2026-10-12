@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Générations{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Générations{% if clinic %} — <a href="/admin/clinic/{{ clinic.id }}">{{ clinic.name }}</a>{% endif %}</h1>
+  </div>
+  {% if not clinic %}<p class="muted">Les 100 dernières générations, tous cabinets confondus.</p>{% endif %}
+  <table class="table">
+    <thead><tr><th>Cabinet</th><th>Période</th><th>Générée par</th><th>Le</th><th>Statut</th>{% if clinic %}<th class="actions">Actions</th>{% endif %}</tr></thead>
+    <tbody>
+    {% for g, c, u in rows %}
+      <tr class="{{ '' if g.is_active else 'inactive' }}">
+        <td><a href="/admin/clinic/{{ c.id }}/generations">{{ c.name }}</a></td>
+        <td class="mono">{{ g.period_from|short_date }} – {{ g.period_to|short_date }}</td>
+        <td>{% if u %}<a href="/admin/users/{{ u.id }}">{{ u.full_name }}</a>{% else %}—{% endif %}</td>
+        <td class="mono">{{ g.generated_at|local_datetime }}</td>
+        <td>{% if g.is_active %}<span class="badge ok">Active</span>{% else %}<span class="badge">Archivée {{ g.archived_at|local_datetime if g.archived_at else '' }}</span>{% endif %}</td>
+        {% if clinic %}
+        <td class="actions">
+          {% if g.is_active %}
+          <form method="post" action="/admin/generations/{{ g.id }}/archive" class="inline">
+            {{ csrf_input(request) }}
+            <button type="submit">Archiver</button>
+          </form>
+          {% endif %}
+          <details>
+            <summary class="danger">Supprimer</summary>
+            <form method="post" action="/admin/generations/{{ g.id }}/delete" class="stack reauth">
+              {{ csrf_input(request) }}
+              <label for="pw-{{ g.id }}">Votre mot de passe pour confirmer</label>
+              <input type="password" id="pw-{{ g.id }}" name="password" autocomplete="current-password" required>
+              <button type="submit" class="danger">Supprimer définitivement</button>
+            </form>
+          </details>
+        </td>
+        {% endif %}
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">Aucune génération.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

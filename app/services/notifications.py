@@ -87,7 +87,7 @@ async def send_schedule_notification(
             )
         except Exception as exc:
             logger.exception("Schedule PDF rendering failed (generation=%s)", generation_id)
-            pdf, error = b"", f"pdf: {type(exc).__name__}"
+            pdf, error = b"", f"pdf: {type(exc).__name__}: {str(exc)[:300]}"
 
         if pdf:
             for recipient in recipients:
@@ -100,7 +100,13 @@ async def send_schedule_notification(
                 except Exception as exc:
                     logger.exception("Schedule email failed (user_id=%s)", recipient.id)
                     results.append(
-                        {"email": recipient.email, "ok": False, "error": type(exc).__name__}
+                        {
+                            "email": recipient.email,
+                            "ok": False,
+                            "error": type(exc).__name__,
+                            # SMTP reply / reason, shown to superadmins in /admin/stats.
+                            "message": str(exc)[:300],
+                        }
                     )
 
         audit.record(

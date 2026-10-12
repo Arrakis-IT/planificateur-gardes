@@ -5,7 +5,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
@@ -22,7 +22,11 @@ router = APIRouter(tags=["account"])
 @router.get("/parametres")
 async def settings_page(request: Request, auth: CurrentAuth) -> Response:
     """Settings page with the password change form."""
-    return render(request, "account/settings.html", {"forced": auth.user.must_change_password})
+    return render(
+        request,
+        "account/settings.html",
+        {"forced": auth.real_user.must_change_password, "impersonating": auth.impersonating},
+    )
 
 
 @router.post("/parametres/mot-de-passe")
@@ -34,6 +38,11 @@ async def change_password(
     settings: AppSettings,
 ) -> Response:
     """Change the password, revoke every session and open a fresh one."""
+    if auth.impersonating:
+        raise HTTPException(
+            403,
+            "Impossible de changer le mot de passe d'un médecin dont vous avez pris l'identité.",
+        )
     user = auth.user
     context = {"forced": user.must_change_password}
     error: str | None = None

@@ -372,6 +372,40 @@ a.month-cell { color: inherit; text-decoration: none; }
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+/* --- Superadmin mode banners (phase 8) ---------------------------------------------- */
+.mode-banner {
+  position: sticky; top: 0; z-index: 800; display: flex; justify-content: center; align-items: center;
+  gap: 12px; flex-wrap: wrap; padding: 8px 16px; font-size: 14px; text-align: center;
+}
+.mode-banner.impersonating { background: #6b2d5c; color: #fff; }  /* plum: unmistakable */
+.mode-banner.read-only { background: #1f3a5f; color: #fff; }
+.mode-banner button { min-height: 32px; padding: 4px 12px; background: #fff; color: var(--ink); border-color: #fff; }
+.mode-banner button:hover { background: var(--accent-soft); color: var(--ink); }
+.sheet-item.mode-exit { color: #6b2d5c; font-weight: 600; }
+
+/* --- Admin extras (phase 8) --------------------------------------------------------- */
+button.impersonate { border-color: #6b2d5c; color: #6b2d5c; }
+button.impersonate:hover { background: #6b2d5c; color: #fff; }
+.nowrap { white-space: nowrap; }
+pre.json {
+  margin: 6px 0 0; padding: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px;
+  font-family: var(--font-mono); font-size: 12px; white-space: pre-wrap; max-width: 420px;
+}
+.audit-table td { font-size: 13px; }
+.badge.action { font-family: var(--font-mono); font-size: 11px; }
+.filters { margin-bottom: 8px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { border: 1px solid var(--line); border-radius: 4px; padding: 14px; background: var(--bg); }
+.kpi-value { font-family: var(--font-heading); font-size: 34px; color: var(--accent); line-height: 1.1; }
+.kpi-label { font-weight: 600; }
+.kpi-sub { color: var(--ink-soft); font-size: 13px; }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 0 24px; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 16px; }
+.facts dt { color: var(--ink-soft); }
+.facts dd { margin: 0; }
+.inline-pager { display: inline-flex; gap: 6px; margin-left: 12px; font-size: 13px; vertical-align: middle; }
+.reauth { margin-top: 8px; max-width: 260px; }
+
 /* --- Navigation helpers (all sizes) ----------------------------------------------- */
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 @media (prefers-reduced-motion: reduce) {

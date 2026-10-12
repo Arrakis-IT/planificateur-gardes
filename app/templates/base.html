@@ -18,24 +18,33 @@
   <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
   {% block head %}{% endblock %}
 </head>
-{% set live = auth and auth.user.clinic and not auth.user.is_superadmin and not auth.user.must_change_password %}
+{% set path = request.url.path %}
+{% set admin_page = path.startswith('/admin') %}
+{# Clinic pages: own clinic, impersonated user's clinic, or read-only view. #}
+{% set clinic_ctx = auth and auth.clinic and not admin_page and not auth.real_user.must_change_password %}
+{# Live features (presence, SSE, edits) are off in read-only mode. #}
+{% set live = clinic_ctx and not auth.read_only %}
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'
-      {% if live %}data-live="true" data-self="{{ auth.user.doctor_code }}" class="has-tabbar"{% endif %}>
+      class="{{ 'has-tabbar' if clinic_ctx }}{{ ' has-mode-banner' if auth and (auth.impersonating or auth.read_only) }}"
+      {% if live %}data-live="true" data-self="{{ auth.user.doctor_code }}"{% endif %}>
+  {% if auth and (auth.impersonating or auth.read_only) %}{% include "partials/_mode_banner.html" %}{% endif %}
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <a href="/" class="brand-link">Planificateur des gardes</a>
-        {% if auth and auth.user.clinic %}<span class="subtitle">{{ auth.user.clinic.name }}</span>{% endif %}
-        {% if auth and auth.user.is_superadmin %}<span class="subtitle">Administration</span>{% endif %}
+        <a href="{{ '/admin' if admin_page else '/' }}" class="brand-link">Planificateur des gardes</a>
+        {% if admin_page or (auth and auth.is_superadmin and not auth.clinic) %}<span class="subtitle">Administration</span>
+        {% elif auth and auth.clinic %}<span class="subtitle">{{ auth.clinic.name }}</span>{% endif %}
         {% if live %}<span id="presence" class="presence" aria-live="polite" hidden></span>{% endif %}
       </div>
       {% if auth %}
       <nav class="nav" aria-label="Navigation">
-        {% if auth.user.is_superadmin %}
-          <a href="/admin/clinics">Cabinets</a>
-          <a href="/admin/users">Utilisateurs</a>
-        {% else %}
-          {% set path = request.url.path %}
+        {% if not clinic_ctx and auth.is_superadmin %}
+          <a href="/admin/clinics" class="{{ 'active' if path.startswith('/admin/clinic') }}">Cabinets</a>
+          <a href="/admin/users" class="{{ 'active' if path.startswith('/admin/users') }}">Utilisateurs</a>
+          <a href="/admin/generations" class="{{ 'active' if path == '/admin/generations' }}">Générations</a>
+          <a href="/admin/audit" class="{{ 'active' if path == '/admin/audit' }}">Journal</a>
+          <a href="/admin/stats" class="{{ 'active' if path == '/admin/stats' }}">Statistiques</a>
+        {% elif clinic_ctx %}
           <a href="/" class="{{ 'active' if path == '/' }}">Aujourd'hui</a>
           <a href="/semaine" class="{{ 'active' if path == '/semaine' }}">Semaine</a>
           <a href="/mois" class="{{ 'active' if path == '/mois' }}">Mois</a>
@@ -62,6 +71,6 @@
     </main>
   </div>
   <div id="modal"></div>
-  {% if live %}{% include "partials/_tabbar.html" %}{% endif %}
+  {% if clinic_ctx %}{% include "partials/_tabbar.html" %}{% endif %}
 </body>
 </html>

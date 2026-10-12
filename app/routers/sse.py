@@ -14,9 +14,9 @@ from starlette.background import BackgroundTask
 
 from app.config import get_settings
 from app.db import get_sessionmaker
-from app.dependencies import ClinicAuth, ClinicScope
+from app.dependencies import ClinicAuth, ClinicScope, load_auth_context
 from app.models import User
-from app.services.auth import SESSION_COOKIE_NAME, resolve_session
+from app.services.auth import SESSION_COOKIE_NAME
 from app.services.presence import PresentUser, hub
 
 router = APIRouter(prefix="/sse", tags=["sse"])
@@ -44,17 +44,16 @@ async def presence_stream(request: Request) -> Response:
     not hold a pooled connection.
     """
     async with get_sessionmaker()() as db:
-        resolved = await resolve_session(
-            db, get_settings(), request.cookies.get(SESSION_COOKIE_NAME)
-        )
-    if resolved is None:
+        auth = await load_auth_context(db, get_settings(), request.cookies.get(SESSION_COOKIE_NAME))
+    if auth is None:
         return JSONResponse({"detail": "unauthenticated"}, status_code=401)
-    session, user = resolved
-    if user.is_superadmin or user.clinic_id is None or user.must_change_password:
+    clinic = auth.clinic
+    if clinic is None or auth.read_only or auth.real_user.must_change_password:
         return JSONResponse({"detail": "forbidden"}, status_code=403)
+    user = auth.user
 
-    hub.heartbeat(user.clinic_id, session.id, present_user(user))
-    connection = hub.connect(user.clinic_id, present_user(user))
+    hub.heartbeat(clinic.id, auth.session.id, present_user(user))
+    connection = hub.connect(clinic.id, present_user(user))
     return EventSourceResponse(
         hub.stream(connection),
         ping=SSE_PING_SECONDS,

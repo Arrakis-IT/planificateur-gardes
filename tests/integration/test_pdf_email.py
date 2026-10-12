@@ -84,7 +84,9 @@ async def test_mail_failure_is_audited_per_recipient(client, db, mailer, team):
     entry = await db.scalar(select(AuditLog).where(AuditLog.action == "pdf_sent"))
     assert entry.meta["sent"] == 1 and entry.meta["failed"] == 1
     failed = [r for r in entry.meta["recipients"] if not r["ok"]]
-    assert failed == [{"email": "dt@ex.lu", "ok": False, "error": "ConnectionError"}]
+    assert failed == [
+        {"email": "dt@ex.lu", "ok": False, "error": "ConnectionError", "message": "SMTP down"}
+    ]
 
 
 async def test_pdf_download(client, db, mailer, team):
@@ -121,7 +123,8 @@ async def test_pdf_failure_sends_nothing_and_is_audited(client, db, mailer, team
     assert response.status_code == 303  # generation itself succeeded
     assert mailer.sent == []
     entry = await db.scalar(select(AuditLog).where(AuditLog.action == "pdf_sent"))
-    assert entry.meta["error"] == "pdf: RuntimeError" and entry.meta["sent"] == 0
+    assert entry.meta["error"] == "pdf: RuntimeError: weasyprint exploded"
+    assert entry.meta["sent"] == 0
 
 
 def test_edited_email_wording():

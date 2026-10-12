@@ -37,20 +37,21 @@
     {% for u in users %}
       <tr class="{{ '' if u.active else 'inactive' }}">
         <td><span class="code" style="--doctor-color: {{ u.color }}">{{ u.doctor_code }}</span></td>
-        <td>{{ u.full_name }}</td>
+        <td><a href="/admin/users/{{ u.id }}">{{ u.full_name }}</a></td>
         <td>{{ u.email }}</td>
-        <td>{% if u.is_superadmin %}<span class="badge">Superadmin</span>{% else %}{{ u.clinic.name if u.clinic else '' }}{% endif %}</td>
+        <td>{% if u.is_superadmin %}<span class="badge">Superadmin</span>{% elif u.clinic %}<a href="/admin/clinic/{{ u.clinic.id }}">{{ u.clinic.name }}</a>{% endif %}</td>
         <td class="mono">{{ u.last_login_at|local_datetime if u.last_login_at else '—' }}</td>
         <td>
           {% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}
           {% if u.must_change_password %}<span class="badge warn">MDP à changer</span>{% endif %}
         </td>
         <td class="actions">
+          {% include "admin/_impersonate_button.html" %}
           <form method="post" action="/admin/users/{{ u.id }}/reset-password" class="inline">
             {{ csrf_input(request) }}
             <button type="submit">Réinitialiser le MDP</button>
           </form>
-          {% if u.id != auth.user.id %}
+          {% if u.id != auth.real_user.id %}
           <form method="post" action="/admin/users/{{ u.id }}/toggle-active" class="inline">
             {{ csrf_input(request) }}
             <button type="submit">{{ 'Désactiver' if u.active else 'Réactiver' }}</button>

@@ -22,7 +22,7 @@
     <tbody>
     {% for clinic, user_count in rows %}
       <tr class="{{ '' if clinic.active else 'inactive' }}">
-        <td>{{ clinic.name }}</td>
+        <td><a href="/admin/clinic/{{ clinic.id }}">{{ clinic.name }}</a></td>
         <td class="mono">{{ clinic.slug }}</td>
         <td><a href="/admin/users?clinic={{ clinic.id }}">{{ user_count }}</a></td>
         <td>{% if clinic.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}</td>

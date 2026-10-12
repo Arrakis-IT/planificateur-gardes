@@ -1,0 +1,6 @@
+{% if not u.is_superadmin and u.active and u.clinic and u.clinic.active %}
+<form method="post" action="/admin/users/{{ u.id }}/impersonate" class="inline">
+  {{ csrf_input(request) }}
+  <button type="submit" class="impersonate" title="Voir et agir exactement comme {{ u.full_name }}">Se connecter en tant que</button>
+</form>
+{% endif %}

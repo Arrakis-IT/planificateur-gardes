@@ -80,7 +80,7 @@ async def clinic_create(
         db,
         "clinic_created",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=clinic.id,
         target_type="clinic",
         target_id=clinic.id,
@@ -106,7 +106,7 @@ async def clinic_rename(
         db,
         "clinic_renamed",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=clinic.id,
         target_type="clinic",
         target_id=clinic.id,
@@ -127,7 +127,7 @@ async def clinic_toggle_active(
         db,
         "clinic_activated" if clinic.active else "clinic_deactivated",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=clinic.id,
         target_type="clinic",
         target_id=clinic.id,
@@ -154,7 +154,7 @@ async def clinic_delete(
         db,
         "clinic_deleted",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=clinic.id,
         target_type="clinic",
         target_id=clinic.id,
@@ -264,7 +264,7 @@ async def user_create(
         db,
         "user_created",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=user.clinic_id,
         target_type="user",
         target_id=user.id,
@@ -286,7 +286,7 @@ async def user_reset_password(
     user = await _get_user_or_404(db, user_id)
     temporary = generate_temporary_password()
     await set_password(
-        db, user, temporary, request, via="admin", actor_id=auth.user.id, must_change=True
+        db, user, temporary, request, via="admin", actor_id=auth.real_user.id, must_change=True
     )
     await db.commit()
     # Rendered directly (no redirect) so the password never travels in a cookie or URL.
@@ -301,7 +301,7 @@ async def user_toggle_active(
 ) -> Response:
     """Activate / deactivate a user. Deactivation revokes their sessions."""
     user = await _get_user_or_404(db, user_id)
-    if user.id == auth.user.id:
+    if user.id == auth.real_user.id:
         return _redirect("/admin/users", "Vous ne pouvez pas vous désactiver vous-même.", "error")
     user.active = not user.active
     if not user.active:
@@ -310,7 +310,7 @@ async def user_toggle_active(
         db,
         "user_activated" if user.active else "user_deactivated",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=user.clinic_id,
         target_type="user",
         target_id=user.id,
@@ -327,13 +327,13 @@ async def user_delete(
 ) -> Response:
     """Delete a user (sessions and reset tokens cascade)."""
     user = await _get_user_or_404(db, user_id)
-    if user.id == auth.user.id:
+    if user.id == auth.real_user.id:
         return _redirect("/admin/users", "Vous ne pouvez pas vous supprimer vous-même.", "error")
     audit.record(
         db,
         "user_deleted",
         request=request,
-        user_id=auth.user.id,
+        user_id=auth.real_user.id,
         clinic_id=user.clinic_id,
         target_type="user",
         target_id=user.id,

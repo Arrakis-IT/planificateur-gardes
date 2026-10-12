@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ user.full_name }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1><span class="code" style="--doctor-color: {{ user.color }}">{{ user.doctor_code }}</span> {{ user.full_name }}</h1>
+    {% set u = user %}{% include "admin/_impersonate_button.html" %}
+  </div>
+  <dl class="facts">
+    <dt>E-mail</dt><dd>{{ user.email }}</dd>
+    <dt>Cabinet</dt><dd>{% if user.clinic %}<a href="/admin/clinic/{{ user.clinic.id }}">{{ user.clinic.name }}</a>{% else %}Superadministrateur{% endif %}</dd>
+    <dt>Statut</dt><dd>{{ 'Actif' if user.active else 'Inactif' }}{{ ' · mot de passe à changer' if user.must_change_password }}</dd>
+    <dt>Dernière connexion</dt><dd>{{ user.last_login_at|local_datetime if user.last_login_at else '—' }}</dd>
+    <dt>Créé le</dt><dd>{{ user.created_at|local_datetime }}</dd>
+  </dl>
+  <h2>Activité récente <a class="small" href="/admin/audit?user={{ user.id }}">tout voir</a></h2>
+  {% with entries=entries, compact=true %}{% include "admin/_audit_table.html" %}{% endwith %}
+</section>
+{% endblock %}

@@ -74,7 +74,8 @@ async def month(
         "app/month.html",
         {
             "draft_count": await drafts_repo.count_drafts(db, clinic_id),
-            "return_to": f"/mois?mois={first:%Y-%m}",
+            # No edit links in read-only mode.
+            "return_to": None if auth.read_only else f"/mois?mois={first:%Y-%m}",
             "first": first,
             "weeks": cal.month_weeks(first),
             "days": days,

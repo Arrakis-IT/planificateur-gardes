@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Jours fériés — {{ clinic.name }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Jours fériés — <a href="/admin/clinic/{{ clinic.id }}">{{ clinic.name }}</a></h1>
+  </div>
+  <p class="muted">Les jours fériés propres au cabinet s'ajoutent aux jours fériés officiels luxembourgeois :
+    fond gris dans tous les calendriers, comptés comme un dimanche dans les statistiques.</p>
+
+  <form method="post" action="/admin/clinic/{{ clinic.id }}/holidays" class="row">
+    {{ csrf_input(request) }}
+    <div><label for="date">Date</label><input type="date" id="date" name="date" required></div>
+    <div class="grow"><label for="label">Libellé</label><input type="text" id="label" name="label" maxlength="120" placeholder="Fermeture annuelle du cabinet" required></div>
+    <button type="submit" class="primary">Ajouter</button>
+  </form>
+
+  <h2>Propres au cabinet</h2>
+  <table class="table">
+    <thead><tr><th>Date</th><th>Jour</th><th>Libellé</th><th class="actions"></th></tr></thead>
+    <tbody>
+    {% for h in customs %}
+      <tr>
+        <td class="mono">{{ h.date|short_date }}</td>
+        <td>{{ h.date|weekday_fr }}</td>
+        <td>{{ h.label }}</td>
+        <td class="actions">
+          <form method="post" action="/admin/clinic/{{ clinic.id }}/holidays/{{ h.id }}/delete" class="inline">
+            {{ csrf_input(request) }}
+            <button type="submit" class="danger">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="muted">Aucun jour férié propre au cabinet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Officiels {{ year }}
+    <span class="pager inline-pager">
+      <a href="?year={{ year - 1 }}">‹ {{ year - 1 }}</a><a href="?year={{ year + 1 }}">{{ year + 1 }} ›</a>
+    </span>
+  </h2>
+  <table class="table">
+    <tbody>
+    {% for d, label in official %}
+      <tr class="muted"><td class="mono">{{ d|short_date }}</td><td>{{ d|weekday_fr }}</td><td>{{ label }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Journal{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header"><h1>Journal d'audit</h1><span class="muted">{{ total }} entrée{{ 's' if total != 1 }}</span></div>
+  <form method="get" action="/admin/audit" class="grid-form filters">
+    <div>
+      <label for="f-user">Utilisateur</label>
+      <select id="f-user" name="user">
+        <option value="">Tous</option>
+        {% for u in users.values() %}<option value="{{ u.id }}" {{ 'selected' if filters.user == u.id|string }}>{{ u.full_name }}{{ ' (' ~ u.doctor_code ~ ')' if not u.is_superadmin }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-clinic">Cabinet</label>
+      <select id="f-clinic" name="clinic">
+        <option value="">Tous</option>
+        {% for c in clinics.values() %}<option value="{{ c.id }}" {{ 'selected' if filters.clinic == c.id|string }}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-action">Action</label>
+      <select id="f-action" name="action">
+        <option value="">Toutes</option>
+        {% for a in actions %}<option value="{{ a }}" {{ 'selected' if filters.action == a }}>{{ a }}</option>{% endfor %}
+      </select>
+    </div>
+    <div><label for="f-du">Du</label><input type="date" id="f-du" name="du" value="{{ filters.du }}"></div>
+    <div><label for="f-au">Au</label><input type="date" id="f-au" name="au" value="{{ filters.au }}"></div>
+    <div class="row"><button type="submit" class="primary">Filtrer</button><a class="button" href="/admin/audit">Réinitialiser</a></div>
+  </form>
+
+  {% with compact=false %}{% include "admin/_audit_table.html" %}{% endwith %}
+
+  {% if pages > 1 %}
+  <nav class="pager" aria-label="Pagination">
+    {% if page > 1 %}<a href="/admin/audit?{{ query|urlencode }}&page={{ page - 1 }}">‹ Précédent</a>{% endif %}
+    <strong>Page {{ page }} / {{ pages }}</strong>
+    {% if page < pages %}<a href="/admin/audit?{{ query|urlencode }}&page={{ page + 1 }}">Suivant ›</a>{% endif %}
+  </nav>
+  {% endif %}
+  <p class="muted small">Heures de Luxembourg. Les dates « Du / Au » sont incluses.</p>
+</section>
+{% endblock %}

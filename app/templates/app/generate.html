@@ -33,7 +33,11 @@
     {% endif %}
 
     <div>
-      <button type="submit" class="primary">Générer les affectations</button>
+      {% if auth.read_only %}
+        <p class="muted">Mode lecture : la génération est désactivée.</p>
+      {% else %}
+        <button type="submit" class="primary">Générer les affectations</button>
+      {% endif %}
     </div>
   </form>
   <p class="muted">Avant de générer, vérifiez les <a href="/conges">congés</a> de chacun et les <a href="/sur-place">jours sur place</a>.</p>

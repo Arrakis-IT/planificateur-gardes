@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Statistiques{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Statistiques</h1>
+  <div class="kpis">
+    <div class="kpi"><div class="kpi-value">{{ s.clinics_active }}</div><div class="kpi-label">cabinets actifs</div><div class="kpi-sub">{{ s.clinics_inactive }} inactif{{ 's' if s.clinics_inactive != 1 }}</div></div>
+    <div class="kpi"><div class="kpi-value">{{ s.users_active }}</div><div class="kpi-label">médecins actifs</div><div class="kpi-sub">{{ s.users_inactive }} inactif{{ 's' if s.users_inactive != 1 }} · {{ s.superadmins }} superadmin{{ 's' if s.superadmins != 1 }}</div></div>
+    <div class="kpi"><div class="kpi-value">{{ s.generations_by_clinic|sum(attribute=1) }}</div><div class="kpi-label">générations (30 j)</div><div class="kpi-sub">{{ s.generations_by_clinic|length }} cabinet{{ 's' if s.generations_by_clinic|length != 1 }}</div></div>
+    <div class="kpi"><div class="kpi-value">{{ s.emails_sent }}</div><div class="kpi-label">e-mails envoyés (30 j)</div><div class="kpi-sub {{ 'err' if s.emails_failed }}">{{ s.emails_failed }} échec{{ 's' if s.emails_failed != 1 }}</div></div>
+  </div>
+</section>
+
+<div class="admin-grid">
+<section class="panel">
+  <h2>Générations par cabinet (30 jours)</h2>
+  <table class="table">
+    <tbody>
+    {% for clinic, n in s.generations_by_clinic %}
+      <tr><td><a href="/admin/clinic/{{ clinic.id }}/generations">{{ clinic.name }}</a></td><td class="num">{{ n }}</td></tr>
+    {% else %}<tr><td class="muted">Aucune génération.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section class="panel">
+  <h2>10 dernières connexions échouées</h2>
+  <table class="table">
+    <tbody>
+    {% for e in s.failed_logins %}
+      <tr>
+        <td class="mono nowrap">{{ e.created_at|local_datetime }}</td>
+        <td>{% set who = users.get(e.user_id) if e.user_id else None %}
+          {% if who %}<a href="/admin/users/{{ who.id }}">{{ who.full_name }}</a>{% else %}{{ (e.meta or {}).get('email', '—') }}{% endif %}</td>
+        <td><span class="badge warn">{{ (e.meta or {}).get('reason', '—') }}</span></td>
+        <td class="mono small">{{ e.ip_address or '—' }}</td>
+      </tr>
+    {% else %}<tr><td class="muted">Aucune.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+</div>
+
+<section class="panel">
+  <h2>10 dernières erreurs d'envoi d'e-mail</h2>
+  <table class="table">
+    <tbody>
+    {% for e, r in s.email_errors %}
+      <tr>
+        <td class="mono nowrap">{{ e.created_at|local_datetime }}</td>
+        <td>{{ r.email }}</td>
+        <td class="mono small err">{{ r.message or r.error }}</td>
+      </tr>
+    {% else %}<tr><td class="muted">Aucune erreur.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

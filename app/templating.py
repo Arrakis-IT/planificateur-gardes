@@ -3,6 +3,8 @@
 
 """Jinja2 environments (web pages and emails) and rendering helpers, incl. flash messages."""
 
+import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +51,49 @@ templates.env.filters["short_date"] = cal.short_date
 templates.env.filters["local_datetime"] = cal.local_datetime
 templates.env.filters["month_label"] = cal.month_label
 templates.env.filters["weekday_fr"] = lambda d: cal.WEEKDAYS_FR[d.weekday()]
+
+
+def _as_uuid(value: object) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(str(value))
+    except ValueError:
+        return None
+
+
+def pretty_json(value: Any) -> str:
+    """Indented JSON keeping accents (autoescaped by the template)."""
+    return json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True)
+
+
+_BROWSERS = (
+    ("Edg/", "Edge"),
+    ("Firefox/", "Firefox"),
+    ("Chrome/", "Chrome"),
+    ("Safari/", "Safari"),
+)
+_SYSTEMS = (
+    ("iPhone", "iOS"),
+    ("iPad", "iPadOS"),
+    ("Android", "Android"),
+    ("Mac OS X", "macOS"),
+    ("Windows", "Windows"),
+    ("Linux", "Linux"),
+)
+
+
+def short_user_agent(value: str | None) -> str:
+    """ "Chrome · macOS"-style summary of a User-Agent header."""
+    if not value:
+        return "—"
+    browser = next((name for token, name in _BROWSERS if token in value), None)
+    system = next((name for token, name in _SYSTEMS if token in value), None)
+    summary = " · ".join(part for part in (browser, system) if part)
+    return summary or value[:30]
+
+
+templates.env.filters["pretty_json"] = pretty_json
+templates.env.filters["short_ua"] = short_user_agent
+templates.env.filters["uuid"] = lambda value: _as_uuid(value)
 
 
 # --- Flash messages (one-shot, signed cookie; never put secrets in them) -----------------

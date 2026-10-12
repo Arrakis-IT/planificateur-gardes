@@ -27,6 +27,17 @@
       <a href="/generer" class="sheet-item{{ ' active' if path == '/generer' }}">Générer</a>
       <a href="/resultats" class="sheet-item{{ ' active' if path == '/resultats' }}">Résultats</a>
       <a href="/parametres" class="sheet-item{{ ' active' if path == '/parametres' }}">Paramètres</a>
+      {% if auth.impersonating %}
+      <form method="post" action="/admin/impersonate/exit">
+        {{ csrf_input(request) }}
+        <button type="submit" class="sheet-item mode-exit">Quitter l'identité de {{ auth.user.doctor_code }}</button>
+      </form>
+      {% elif auth.read_only %}
+      <form method="post" action="/admin/view/exit">
+        {{ csrf_input(request) }}
+        <button type="submit" class="sheet-item mode-exit">Quitter le mode lecture</button>
+      </form>
+      {% endif %}
       <form method="post" action="/logout">
         {{ csrf_input(request) }}
         <button type="submit" class="sheet-item danger-text">Déconnexion</button>

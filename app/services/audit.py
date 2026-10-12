@@ -50,6 +50,10 @@ def record(
 
     Never put passwords, tokens or other secrets in `meta`.
     """
+    auth = getattr(request.state, "auth", None) if request is not None else None
+    if auth is not None and auth.impersonating:
+        # Actions done "as" a clinic user stay attributable to the superadmin behind them.
+        meta = {**(meta or {}), "impersonated_by": str(auth.real_user.id)}
     entry = AuditLog(
         action=action,
         user_id=user_id,

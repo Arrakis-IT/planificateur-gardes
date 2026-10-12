@@ -177,8 +177,9 @@ async def results(
             "filter_code": filter_code,
             "today": cal.today_local(),
             "draft_count": draft_count,
-            "return_to": str(request.url.path)
-            + (f"?{request.url.query}" if request.url.query else ""),
+            "return_to": None
+            if auth.read_only
+            else str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
         },
     )
 
@@ -189,7 +190,7 @@ async def results_pdf(
 ) -> Response:
     """Download the PDF of the active generation."""
     generation = await repo.get_active_generation(db, clinic_id)
-    clinic = auth.user.clinic
+    clinic = auth.clinic
     if generation is None or clinic is None:
         raise HTTPException(404, "Aucune planification active.")
     generated_by = (

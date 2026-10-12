@@ -107,10 +107,10 @@ async def logout(request: Request, db: DbSession, auth: OptionalAuth) -> Respons
             db,
             "logout",
             request=request,
-            user_id=auth.user.id,
-            clinic_id=auth.user.clinic_id,
+            user_id=auth.real_user.id,
+            clinic_id=auth.real_user.clinic_id,
             target_type="user",
-            target_id=auth.user.id,
+            target_id=auth.real_user.id,
         )
         await db.commit()
     response = RedirectResponse("/login", status_code=303)

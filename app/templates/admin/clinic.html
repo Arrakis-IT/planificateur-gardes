@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ clinic.name }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>{{ clinic.name }} {% if not clinic.active %}<span class="badge">Inactif</span>{% endif %}</h1>
+    <div class="row">
+      <form method="post" action="/admin/clinic/{{ clinic.id }}/view" class="inline">
+        {{ csrf_input(request) }}
+        <button type="submit" class="primary">Ouvrir en lecture seule</button>
+      </form>
+      <a class="button" href="/admin/clinic/{{ clinic.id }}/holidays">Jours fériés du cabinet</a>
+      <a class="button" href="/admin/clinic/{{ clinic.id }}/generations">Générations</a>
+      <a class="button" href="/admin/audit?clinic={{ clinic.id }}">Journal</a>
+    </div>
+  </div>
+  <p class="muted">
+    Identifiant <span class="mono">{{ clinic.slug }}</span> ·
+    {% if active %}planification active du {{ active.period_from|short_date }} au {{ active.period_to|short_date }}{% else %}aucune planification active{% endif %}
+  </p>
+  <p class="muted small">« Lecture seule » montre les pages du cabinet sans pouvoir rien modifier. Pour modifier, connectez-vous en tant qu'un médecin.</p>
+
+  <h2>Médecins</h2>
+  <table class="table">
+    <thead><tr><th>Code</th><th>Nom</th><th>E-mail</th><th>Statut</th><th class="actions">Actions</th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr class="{{ '' if u.active else 'inactive' }}">
+        <td><span class="code" style="--doctor-color: {{ u.color }}">{{ u.doctor_code }}</span></td>
+        <td><a href="/admin/users/{{ u.id }}">{{ u.full_name }}</a></td>
+        <td>{{ u.email }}</td>
+        <td>{% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}</td>
+        <td class="actions">{% include "admin/_impersonate_button.html" %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">Aucun médecin.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
