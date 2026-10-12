@@ -108,3 +108,12 @@ def test_configure_logging_sets_level():
     configure_logging("info", json_output=False)
     assert logging.getLogger().level == logging.INFO
     assert logging.getLogger("weasyprint").level == logging.WARNING
+
+
+def test_env_example_has_no_inline_comment_after_empty_value():
+    """Docker Compose keeps "# …" as the value of `KEY=   # comment` (it broke SENTRY_DSN)."""
+    import re
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[2] / ".env.example").read_text(encoding="utf-8")
+    assert not re.findall(r"^[A-Z_]+=[ \t]+#", text, flags=re.M)

@@ -257,6 +257,8 @@ def test_sentry_not_initialised_without_dsn(monkeypatch):
     from pydantic import SecretStr
 
     assert init_sentry(_settings(sentry_dsn=SecretStr("   "))) is False
+    # What Docker Compose passes for `SENTRY_DSN=   # comment`: must not crash the app.
+    assert init_sentry(_settings(sentry_dsn=SecretStr("# empty = Sentry disabled"))) is False
     assert calls == []
     main.create_app()  # dev / test start fine without a DSN
     assert calls == []

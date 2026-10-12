@@ -117,6 +117,11 @@ def init_sentry(settings: Settings) -> bool:
     """Initialise Sentry when SENTRY_DSN is configured. Returns True if enabled."""
     if settings.sentry_dsn is None or not settings.sentry_dsn.get_secret_value().strip():
         return False
+    dsn = settings.sentry_dsn.get_secret_value().strip()
+    if not dsn.startswith(("https://", "http://")):
+        # A malformed DSN must never prevent the app from starting.
+        logger.warning("SENTRY_DSN is not a valid DSN URL: Sentry disabled")
+        return False
 
     import sentry_sdk
     from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -125,7 +130,7 @@ def init_sentry(settings: Settings) -> bool:
 
     only_500 = {500}
     sentry_sdk.init(
-        dsn=settings.sentry_dsn.get_secret_value(),
+        dsn=dsn,
         environment=settings.sentry_environment or settings.app_env,
         release=app_version(),
         send_default_pii=False,
