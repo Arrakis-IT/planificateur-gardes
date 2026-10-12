@@ -22,6 +22,7 @@ def test_secret_key_too_short_is_rejected():
 def test_is_production_flag():
     settings = Settings(
         app_env="production",
+        app_base_url="https://gardes.arrakis.lu",
         app_secret_key="x" * 40,  # type: ignore[arg-type]
         database_url="postgresql+asyncpg://x",  # type: ignore[arg-type]
     )
@@ -41,10 +42,13 @@ DEV_KEY = "dev-only-DO-NOT-USE-IN-PRODUCTION-replace-this-string-with-generated-
 DB_URL = "postgresql+asyncpg://user:pw@host/db"
 
 
-def _set_env(monkeypatch, app_env: str, secret: str) -> None:
+def _set_env(
+    monkeypatch, app_env: str, secret: str, base_url: str = "https://gardes.arrakis.lu"
+) -> None:
     monkeypatch.setenv("APP_ENV", app_env)
     monkeypatch.setenv("APP_SECRET_KEY", secret)
     monkeypatch.setenv("DATABASE_URL", DB_URL)
+    monkeypatch.setenv("APP_BASE_URL", base_url)
 
 
 def test_dev_secret_key_rejected_in_production(monkeypatch):
@@ -70,6 +74,15 @@ def test_strong_secret_key_accepted_in_production(monkeypatch):
     settings = Settings()
     assert settings.is_production
     assert settings.app_secret_key.get_secret_value() == strong_key
+
+
+@pytest.mark.parametrize(
+    "base_url", ["http://localhost:8000", "http://gardes.arrakis.lu", "https://127.0.0.1"]
+)
+def test_production_requires_public_https_base_url(monkeypatch, base_url):
+    _set_env(monkeypatch, "production", secrets.token_hex(32), base_url)
+    with pytest.raises(ValidationError, match="APP_BASE_URL must be the public https"):
+        Settings()
 
 
 def test_json_formatter_outputs_single_line_json():

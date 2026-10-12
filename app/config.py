@@ -97,6 +97,19 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _require_public_base_url_in_production(self) -> Self:
+        """Emailed links (reset, schedule) are built from APP_BASE_URL: no localhost in prod."""
+        url = self.app_base_url.lower()
+        if self.is_production and (
+            not url.startswith("https://") or "localhost" in url or "127.0.0.1" in url
+        ):
+            raise ValueError(
+                "APP_BASE_URL must be the public https:// URL in production "
+                "(e.g. https://gardes.arrakis.lu): it is used in emailed links."
+            )
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:
