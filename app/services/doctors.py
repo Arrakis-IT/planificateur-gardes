@@ -11,18 +11,19 @@ from collections.abc import Iterable, Iterator
 # "XX" marks an unassigned day in schedules; never give it to a doctor.
 RESERVED_CODES = frozenset({"XX"})
 
-# 12 muted colors, assigned round-robin within a clinic (see brief §6.2).
+# 12 muted colors, assigned round-robin within a clinic (see brief §6.2). Each one keeps
+# a WCAG AA contrast (≥ 4.5:1) with the white initials drawn on top of it.
 DOCTOR_PALETTE: tuple[str, ...] = (
     "#2d4a3e",  # oak green
     "#8c5e3a",  # terracotta
     "#5c6ba8",  # dusty blue
     "#a84d4d",  # muted red
-    "#4d8c6b",  # sage
-    "#8c7a2e",  # mustard
+    "#478062",  # sage
+    "#84732b",  # mustard
     "#6b4d8c",  # plum
-    "#4d8c8c",  # teal
+    "#457d7d",  # teal
     "#8c4d7a",  # mauve
-    "#7a8c4d",  # olive
+    "#6a7a43",  # olive
     "#8c6b4d",  # bronze
     "#4d6b8c",  # slate
 )

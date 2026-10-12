@@ -2,9 +2,16 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>{% block title %}Planificateur des gardes{% endblock %} — Arrakis IT</title>
+  <meta name="theme-color" content="#2d4a3e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Gardes">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="{{ url_for('static', path='icons/icon.svg') }}" type="image/svg+xml">
+  <link rel="icon" href="{{ url_for('static', path='icons/favicon-32.png') }}" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="{{ url_for('static', path='icons/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <script src="{{ url_for('static', path='js/htmx.min.js') }}" defer></script>
@@ -13,7 +20,7 @@
 </head>
 {% set live = auth and auth.user.clinic and not auth.user.is_superadmin and not auth.user.must_change_password %}
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'
-      {% if live %}data-live="true" data-self="{{ auth.user.doctor_code }}"{% endif %}>
+      {% if live %}data-live="true" data-self="{{ auth.user.doctor_code }}" class="has-tabbar"{% endif %}>
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -23,7 +30,7 @@
         {% if live %}<span id="presence" class="presence" aria-live="polite" hidden></span>{% endif %}
       </div>
       {% if auth %}
-      <nav class="nav">
+      <nav class="nav" aria-label="Navigation">
         {% if auth.user.is_superadmin %}
           <a href="/admin/clinics">Cabinets</a>
           <a href="/admin/users">Utilisateurs</a>
@@ -55,5 +62,6 @@
     </main>
   </div>
   <div id="modal"></div>
+  {% if live %}{% include "partials/_tabbar.html" %}{% endif %}
 </body>
 </html>

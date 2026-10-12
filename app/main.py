@@ -22,7 +22,7 @@ from app.dependencies import RedirectError
 from app.middleware.csrf import CSRFCookieMiddleware, verify_csrf
 from app.middleware.rate_limit import limiter
 from app.repositories.scope import NoClinicScopeError
-from app.routers import account, admin, auth, editing, generation, health, holidays, sse
+from app.routers import account, admin, auth, editing, generation, health, holidays, pwa, sse
 from app.routers import app as app_router
 from app.services.bootstrap import ensure_initial_superadmin
 from app.services.presence import hub
@@ -107,6 +107,7 @@ def create_app() -> FastAPI:
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(health.router)
+    app.include_router(pwa.router)
     app.include_router(auth.router)
     app.include_router(account.router)
     app.include_router(admin.router)

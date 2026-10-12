@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Planificateur des gardes</title>
+  <rect width="512" height="512" rx="112" fill="#2d4a3e"/>
+  <g fill="none" stroke="#f6f5f1" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="120" y="138" width="272" height="248" rx="32"/>
+    <path d="M120 206h272M186 106v64M326 106v64"/>
+  </g>
+  <g fill="#f6f5f1">
+    <rect x="164" y="244" width="44" height="40" rx="8"/>
+    <rect x="234" y="244" width="44" height="40" rx="8"/>
+    <rect x="164" y="306" width="44" height="40" rx="8"/>
+    <rect x="234" y="306" width="44" height="40" rx="8"/>
+    <rect x="304" y="306" width="44" height="40" rx="8"/>
+  </g>
+  <rect x="304" y="244" width="44" height="40" rx="8" fill="#f4c430"/>
+</svg>

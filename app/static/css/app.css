@@ -19,12 +19,12 @@
   --surface: #ffffff;
   --ink: #1a1a1a;
   --ink-soft: #555;
-  --ink-faint: #999;
+  --ink-faint: #6a6a6a;  /* AA on white, background and weekend grey */
   --line: #e5e3dc;
   --line-strong: #c9c5b8;
   --accent: #2d4a3e;
   --accent-soft: #e8efeb;
-  --warn: #b85c00;
+  --warn: #ab5600;  /* AA on --warn-soft */
   --warn-soft: #fdf0e0;
   --err: #c0392b;
   --err-soft: #fbe9e7;
@@ -275,7 +275,7 @@ details[open] { display: block; margin-top: 6px; }
 .month-cell.filtered-out .cell-doctor { visibility: hidden; }
 .month-cell.filtered-out.onsite-cell, .month-cell.filtered-out.xx-cell { background: var(--surface); border-color: var(--line); }
 
-.results-months-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.results-months-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
 .month-block { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 16px; }
 .month-title { font-family: var(--font-heading); font-size: 16px; margin-bottom: 8px; color: var(--accent); }
 
@@ -298,7 +298,7 @@ details[open] { display: block; margin-top: 6px; }
 .stats-table { font-size: 13px; }
 
 /* --- Mini calendars (vacations, on-site) — from the standalone app ----------- */
-.multi-month { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.multi-month { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 16px; }
 .mini-month { border: 1px solid var(--line); border-radius: 3px; padding: 10px; background: var(--surface); }
 .mini-month-title {
   font-size: 12px; font-weight: 600; text-transform: capitalize; margin-bottom: 6px;
@@ -372,16 +372,131 @@ a.month-cell { color: inherit; text-decoration: none; }
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
+/* --- Navigation helpers (all sizes) ----------------------------------------------- */
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+.pager a {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 36px;
+  padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 3px; background: var(--surface);
+}
+.pager a:hover { border-color: var(--accent); background: var(--accent-soft); }
+.danger-text { color: var(--err); }
+[hidden] { display: none !important; }  /* never let a display rule reveal hidden widgets */
+
+/* Tab bar + "Plus" sheet: hidden on large screens (the header nav is used there). */
+.tabbar { display: none; }
+
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* --- Mobile (≤ 768 px) ------------------------------------------------------------ */
 @media (max-width: 768px) {
-  .app { padding: 16px; }
+  .app { padding: 12px; }
+  body.has-tabbar { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  body.has-tabbar .topbar .nav { display: none; }  /* replaced by the tab bar */
+  .topbar { margin-bottom: 14px; padding-bottom: 10px; }
+  .brand-link { font-size: 19px; }
+  .subtitle { display: block; margin: 2px 0 0; font-size: 13px; }
+  .presence { margin: 6px 0 0; display: inline-block; }
+  h1 { font-size: 22px; }
+  .panel { padding: 14px 10px; margin-bottom: 14px; }
+  .panel-header { margin-bottom: 12px; }
+
+  /* Touch targets ≥ 44 × 44 px (iOS HIG). */
+  button, .button, a.button, input[type="text"], input[type="email"], input[type="password"],
+  input[type="date"], select, .filter-chip, .pager a { min-height: 44px; }
+  .filter-chip { display: inline-flex; align-items: center; }
+  button.link { min-height: 44px; }
+
+  .tabbar {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
+    background: var(--surface); border-top: 1px solid var(--line-strong);
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  }
+  .tab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-height: 56px; min-width: 44px; border-radius: 6px; color: var(--ink-soft);
+    text-decoration: none; font-size: 11px; font-weight: 500; cursor: pointer; list-style: none;
+  }
+  .tab::-webkit-details-marker { display: none; }
+  .tab svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2;
+             stroke-linecap: round; stroke-linejoin: round; }
+  .tab.active { color: var(--accent); font-weight: 700; }
+  .tab.active svg { stroke-width: 2.4; }
+  .more { display: contents; }
+
+  .sheet-backdrop { position: fixed; inset: 0; background: rgba(26, 26, 26, 0.5); z-index: 950; }
+  .sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 960; background: var(--surface);
+    border-radius: 14px 14px 0 0; padding: 8px 12px calc(16px + env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2); animation: sheet-up 0.2s ease-out;
+  }
+  .sheet-handle { width: 40px; height: 4px; border-radius: 2px; background: var(--line-strong); margin: 4px auto 10px; }
+  .sheet-item {
+    display: flex; align-items: center; width: 100%; min-height: 52px; padding: 0 16px;
+    border: none; border-bottom: 1px solid var(--line); border-radius: 0; background: none;
+    color: var(--ink); font-size: 16px; text-decoration: none; text-align: left;
+  }
+  .sheet-item.active { color: var(--accent); font-weight: 600; }
+  .sheet-item:hover { background: var(--accent-soft); color: var(--ink); }
+  .sheet form .sheet-item { border-bottom: none; }
+  .sheet-item.danger-text { color: var(--err); }
+
+  /* Dashboard: two big cards, both visible without scrolling. */
   .duty-cards { grid-template-columns: 1fr; gap: 12px; }
-  .duty-code { min-width: 56px; height: 56px; font-size: 20px; }
-  .week-row { grid-template-columns: 70px 1fr; }
+  .duty-card { padding: 18px; gap: 10px; }
+  .duty-date { font-size: 20px; }
+  .duty-code { min-width: 60px; height: 60px; font-size: 22px; }
+  .duty-name { font-size: 19px; }
+  .badge { font-size: 13px; padding: 3px 10px; }
+
+  /* Week: vertical list, big previous/next buttons. */
+  .pager { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
+  .pager a, .pager strong { text-align: center; }
+  .pager strong { grid-row: 1; grid-column: 1 / -1; }
+  .pager:has(strong) a { grid-row: 2; }
+  .pager a { padding: 0 6px; line-height: 1.2; }
+  .week-row { grid-template-columns: 64px 1fr; padding: 12px 8px; min-height: 64px; }
   .week-row .badges { grid-column: 2; }
-  .month-cell { min-height: 44px; }
-  .date-range { grid-template-columns: 1fr; }
+  .week-daynum { font-size: 22px; }
+
+  /* Month: compact 7-column grid of square cells. */
+  .month-grid { gap: 2px; }
+  .month-cell { min-height: 0; aspect-ratio: 1 / 1; padding: 1px; }
+  .cell-date { font-size: 10px; }
+  .cell-doctor { font-size: 11px; padding: 2px 3px; margin-top: 3px; letter-spacing: -0.02em; }
+  .results-months-grid { grid-template-columns: 1fr; }
+  .month-block { padding: 12px 8px; }
+  .legend { gap: 10px; font-size: 12px; }
+
+  /* Vacations / on-site: one month per row, comfortable day buttons. */
+  .multi-month { grid-template-columns: 1fr; }
+  .cal-day { height: 44px; font-size: 14px; }
+  .mini-month { padding: 8px 2px; }
+  .calendar { gap: 1px; }
+  .mini-month .cal-header { font-size: 11px; }
+  .row > * { flex: 1 1 140px; }
+
+  /* Edit modal → bottom sheet. */
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal {
+    max-width: none; border-radius: 14px 14px 0 0; min-height: 60vh; max-height: 88vh;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); animation: sheet-up 0.2s ease-out;
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .modal-option { min-height: 52px; font-size: 16px; }
+
+  .draft-banner { flex-direction: column; align-items: stretch; }
+  .draft-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .draft-actions form, .draft-actions button { width: 100%; }
+
   .table:not(.stats-table) thead { display: none; }
   .table:not(.stats-table) tr { display: block; border-bottom: 1px solid var(--line-strong); padding: 8px 0; }
   .table:not(.stats-table) td { display: block; border: none; padding: 4px 0; }
   .table td.actions { white-space: normal; }
+  .date-range { grid-template-columns: 1fr; }
 }

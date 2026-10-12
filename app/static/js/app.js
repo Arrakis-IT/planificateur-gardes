@@ -11,6 +11,27 @@
   var RECONNECT_MS = 30000;
   var body = document.body;
 
+  // --- PWA: static-assets-only service worker (see app/routers/pwa.py) -------------------
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {
+        /* not critical: the app works the same without it */
+      });
+    });
+  }
+
+  // --- "Plus" bottom sheet (a <details>; JS only adds tap-outside / Escape to close) -----
+  function closeMore() {
+    document.querySelectorAll("details.more[open]").forEach(function (sheet) {
+      sheet.open = false;
+    });
+  }
+  document.addEventListener("click", function (event) {
+    if (event.target instanceof Element && event.target.hasAttribute("data-close-more")) {
+      closeMore();
+    }
+  });
+
   // --- Modal ------------------------------------------------------------------------
   function closeModal() {
     var modal = document.getElementById("modal");
@@ -22,7 +43,10 @@
     if (target instanceof Element && target.hasAttribute("data-close-modal")) closeModal();
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") closeModal();
+    if (event.key === "Escape") {
+      closeModal();
+      closeMore();
+    }
   });
   document.body.addEventListener("closeModal", closeModal); // HX-Trigger from the server
 
