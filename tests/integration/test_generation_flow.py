@@ -36,10 +36,12 @@ async def clinic_team(client, db, make_clinic, make_user):
 async def test_generate_page_defaults_and_doctor_counts(client, db, clinic_team, monkeypatch):
     from app.services import calendar as cal
 
-    monkeypatch.setattr(cal, "today_local", lambda now=None: date(2026, 10, 11))
+    monkeypatch.setattr(cal, "today_local", lambda now=None: date(2026, 10, 14))
     page = await client.get("/generer")
     assert page.status_code == 200
-    assert 'value="2027-01-01"' in page.text and 'value="2027-06-30"' in page.text
+    assert 'value="2026-10-14"' in page.text and 'value="2027-04-30"' in page.text
+    default_fragment = await client.get("/generer/medecins")
+    assert "199 jours" in default_fragment.text  # 14/10/2026 → 30/04/2027
     assert "Ancien Médecin" not in page.text  # inactive users don't take part
     fragment = await client.get("/generer/medecins", params=PERIOD)
     assert "31 jours" in fragment.text and "1 jour sur place" in fragment.text

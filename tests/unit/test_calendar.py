@@ -11,16 +11,17 @@ from app.services import calendar as cal
 
 
 @pytest.mark.parametrize(
-    ("today", "start", "end"),
+    ("today", "end"),
     [
-        (date(2027, 1, 1), date(2027, 7, 1), date(2027, 12, 31)),
-        (date(2027, 6, 30), date(2027, 7, 1), date(2027, 12, 31)),
-        (date(2027, 7, 1), date(2028, 1, 1), date(2028, 6, 30)),
-        (date(2027, 12, 31), date(2028, 1, 1), date(2028, 6, 30)),
+        (date(2026, 10, 14), date(2027, 4, 30)),
+        (date(2026, 10, 31), date(2027, 4, 30)),
+        (date(2027, 1, 1), date(2027, 7, 31)),
+        (date(2027, 8, 31), date(2028, 2, 29)),  # leap year
+        (date(2027, 12, 1), date(2028, 6, 30)),
     ],
 )
-def test_next_semester_default_period(today, start, end):
-    assert cal.next_semester(today) == cal.Period(start, end)
+def test_default_generation_period(today, end):
+    assert cal.default_generation_period(today) == cal.Period(today, end)
 
 
 def test_month_window_key_and_label():

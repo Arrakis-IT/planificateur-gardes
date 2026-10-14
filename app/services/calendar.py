@@ -39,18 +39,6 @@ class Period:
         return (self.end - self.start).days + 1
 
 
-def semester_of(d: date) -> Period:
-    """The semester (Jan–Jun or Jul–Dec) containing `d`."""
-    if d.month <= 6:
-        return Period(date(d.year, 1, 1), date(d.year, 6, 30))
-    return Period(date(d.year, 7, 1), date(d.year, 12, 31))
-
-
-def next_semester(today: date) -> Period:
-    """Default planning period, as in the standalone app (brief §5.3)."""
-    return semester_of(semester_of(today).end + timedelta(days=1))
-
-
 def parse_month(value: str | None, default: date) -> date:
     """Parse "YYYY-MM" into the first day of that month (fallback: month of `default`)."""
     try:
@@ -80,6 +68,11 @@ def add_months(first_of_month: date, months: int) -> date:
     """First day of the month `months` away."""
     index = first_of_month.year * 12 + first_of_month.month - 1 + months
     return date(index // 12, index % 12 + 1, 1)
+
+
+def default_generation_period(today: date) -> Period:
+    """Today → last day of the month six months ahead (e.g. 14/10/2026 → 30/04/2027)."""
+    return Period(today, add_months(today.replace(day=1), 7) - timedelta(days=1))
 
 
 def month_key(first_of_month: date) -> str:

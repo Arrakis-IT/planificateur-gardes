@@ -69,8 +69,8 @@ async def _generate_page(
 async def generate_page(
     request: Request, auth: ClinicAuth, clinic_id: ClinicScope, db: DbSession
 ) -> Response:
-    """Period picker (default: next semester) and doctors summary."""
-    period = cal.next_semester(cal.today_local())
+    """Period picker (default: today → end of the month six months ahead) and doctors."""
+    period = cal.default_generation_period(cal.today_local())
     return await _generate_page(request, clinic_id, db, period.start, period.end)
 
 
@@ -84,7 +84,7 @@ async def generate_doctors_fragment(
     period_to: str | None = None,
 ) -> Response:
     """HTMX fragment: doctors summary refreshed when the period changes."""
-    default = cal.next_semester(cal.today_local())
+    default = cal.default_generation_period(cal.today_local())
     start = cal.parse_day(period_from, default.start)
     end = cal.parse_day(period_to, default.end)
     context = await _doctors_context(db, clinic_id, start, end)
