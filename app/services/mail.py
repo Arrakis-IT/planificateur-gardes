@@ -38,6 +38,7 @@ class OutgoingEmail:
     text: str
     html: str | None = None
     attachments: tuple[Attachment, ...] = field(default_factory=tuple)
+    headers: tuple[tuple[str, str], ...] = ()  # extra headers, e.g. List-Unsubscribe
 
 
 class MailSender(Protocol):
@@ -74,6 +75,8 @@ class SmtpMailSender:
         msg["From"] = formataddr((s.brevo_sender_name, s.brevo_sender_email))
         msg["To"] = message.to
         msg["Subject"] = message.subject
+        for name, value in message.headers:
+            msg[name] = value
         msg["Message-ID"] = make_msgid(domain=s.brevo_sender_email.split("@")[-1])
         msg.set_content(message.text)
         if message.html:

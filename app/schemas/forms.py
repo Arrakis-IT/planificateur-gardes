@@ -50,6 +50,12 @@ class NewPasswordForm(_Form):
     password_confirm: Password
 
 
+class NotificationsForm(_Form):
+    """POST /parametres/notifications (checkbox: absent means off)."""
+
+    enabled: bool = False
+
+
 class TermsForm(_Form):
     """POST /acceptation-cgu (users created before the terms checkbox existed)."""
 

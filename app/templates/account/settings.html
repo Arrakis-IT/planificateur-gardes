@@ -17,6 +17,20 @@
     <button type="submit">Enregistrer le nom</button>
   </form>
   {% endif %}
+  {% if not forced and not auth.impersonating %}
+  <h2>Préférences</h2>
+  {# Applied as soon as the box changes (HTMX); the noscript button covers no-JS browsers. #}
+  <form method="post" action="/parametres/notifications" class="stack"
+        hx-post="/parametres/notifications" hx-trigger="change" hx-swap="none">
+    {{ csrf_input(request) }}
+    <div class="checkbox">
+      <input type="checkbox" id="email_notifications" name="enabled" value="true" {{ 'checked' if auth.user.email_notifications_enabled }}>
+      <label for="email_notifications" class="plain-label">Recevoir les emails de notification de planification</label>
+    </div>
+    <p class="muted small">Les emails d'invitation et de réinitialisation du mot de passe sont toujours envoyés.</p>
+    <noscript><button type="submit">Enregistrer</button></noscript>
+  </form>
+  {% endif %}
   <h2>Changer le mot de passe</h2>
   {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
   <form method="post" action="/parametres/mot-de-passe" class="stack">

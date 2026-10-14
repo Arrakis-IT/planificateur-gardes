@@ -15,4 +15,6 @@ Aucun changement sur la période partagée.
 Vous pouvez consulter et modifier la planification à tout moment sur {{ app_url }}.
 
 ---
+Vous recevez cet email car vous êtes inscrit sur Planificateur des gardes.
+Se désabonner : {{ unsubscribe_url }}
 Arrakis IT Services · https://www.arrakis.lu

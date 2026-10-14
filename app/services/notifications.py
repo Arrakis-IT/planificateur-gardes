@@ -9,6 +9,9 @@ each other) and writes a `pdf_sent` audit entry with the outcome per recipient.
 
 After a regeneration, the email also lists the day-by-day changes against the archived
 generation on the days both cover (see app/services/changelog.py).
+
+These are notification emails: users who opted out (email_notifications_enabled false) are
+skipped, and every message ends with a one-click unsubscribe link.
 """
 
 import logging
@@ -25,6 +28,7 @@ from app.services import audit
 from app.services.changelog import Changelog, load_changelog
 from app.services.mail import Attachment, MailSender, OutgoingEmail
 from app.services.pdf import build_schedule_pdf, pdf_filename
+from app.services.unsubscribe import unsubscribe_url
 from app.templating import render_email
 
 logger = logging.getLogger(__name__)
@@ -42,15 +46,18 @@ def build_schedule_email(
     changelog: Changelog | None = None,
 ) -> OutgoingEmail:
     """The French notification email with the PDF attached (and the changelog, if any)."""
+    settings = get_settings()
     period_from = generation.period_from.strftime("%d/%m/%Y")
     period_to = generation.period_to.strftime("%d/%m/%Y")
+    unsubscribe = unsubscribe_url(settings, recipient.id)
     context = {
         "actor_name": actor_name,
         "verb": "modifier" if action == "edited" else "générer",
         "period_from": period_from,
         "period_to": period_to,
-        "app_url": get_settings().app_base_url.rstrip("/"),
+        "app_url": settings.app_base_url.rstrip("/"),
         "changelog": changelog,
+        "unsubscribe_url": unsubscribe,
     }
     return OutgoingEmail(
         to=recipient.email,
@@ -58,6 +65,7 @@ def build_schedule_email(
         text=render_email("schedule.txt", context),
         html=render_email("schedule.html", context),
         attachments=(Attachment(pdf_filename(clinic, generation), pdf),),
+        headers=(("List-Unsubscribe", f"<{unsubscribe}>"),),
     )
 
 
@@ -83,7 +91,18 @@ async def send_schedule_notification(
             logger.error("Schedule notification skipped: generation %s not found", generation_id)
             return
         actor_name = actor.full_name if actor else "Un utilisateur"
-        recipients = await users_repo.list_clinic_users(db, clinic_id)
+        recipients: list[User] = []
+        opted_out: list[str] = []
+        for user in await users_repo.list_clinic_users(db, clinic_id):
+            if user.email_notifications_enabled:
+                recipients.append(user)
+            else:
+                opted_out.append(user.email)
+                logger.info(
+                    "Schedule email (generation=%s) skipped for user_id=%s (opt-out)",
+                    generation_id,
+                    user.id,
+                )
         changelog: Changelog | None = None
         if previous_generation_id is not None:
             try:
@@ -141,6 +160,7 @@ async def send_schedule_notification(
                 "failed": sum(1 for r in results if not r["ok"]),
                 "pdf_bytes": len(pdf),
                 "error": error,
+                "opted_out": opted_out,
             },
         )
         await db.commit()

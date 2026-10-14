@@ -59,6 +59,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # When the user accepted the CGU and privacy policy (checkbox of the invitation form).
     accepted_terms_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Notification emails (schedule generated / edited). Invitations and password resets are
+    # always sent. See app/services/unsubscribe.py.
+    email_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=true()
+    )
 
     # Loaded eagerly: async sessions cannot lazy-load on attribute access.
     clinic: Mapped[Clinic | None] = relationship(lazy="selectin")

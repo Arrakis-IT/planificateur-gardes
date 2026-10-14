@@ -13,14 +13,26 @@ from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
 from app.dependencies import TERMS_ACCEPTANCE_PATH, AppSettings, AuthContext, CurrentAuth, DbSession
+from app.models import User
 from app.routers.auth import TERMS_REQUIRED, set_session_cookie
-from app.schemas.forms import ChangePasswordForm, MonthLockForm, ProfileForm, TermsForm
+from app.schemas.forms import (
+    ChangePasswordForm,
+    MonthLockForm,
+    NotificationsForm,
+    ProfileForm,
+    TermsForm,
+)
 from app.services import audit
 from app.services import calendar as cal
 from app.services.auth import create_session, set_password
 from app.services.locks import LockError, apply_lock_form, can_manage_locks, lock_rows
 from app.services.profile import rename_user
 from app.services.security import validate_new_password, verify_password
+from app.services.unsubscribe import (
+    UNSUBSCRIBE_PATH,
+    read_unsubscribe_token,
+    set_email_notifications,
+)
 from app.templating import is_htmx, render, set_flash, trigger_toast
 
 router = APIRouter(tags=["account"])
@@ -182,3 +194,53 @@ async def accept_terms(
         )
         await db.commit()
     return RedirectResponse("/", status_code=303)
+
+
+# --- Notification emails preference -------------------------------------------------------
+
+NOTIFICATIONS_IMPERSONATION_FORBIDDEN = (
+    "Impossible de modifier les préférences d'un médecin dont vous avez pris l'identité."
+)
+
+
+@router.post(
+    "/parametres/notifications",
+    responses={403: {"description": NOTIFICATIONS_IMPERSONATION_FORBIDDEN}},
+)
+async def update_notifications(
+    request: Request,
+    form: Annotated[NotificationsForm, Form()],
+    auth: CurrentAuth,
+    db: DbSession,
+) -> Response:
+    """Toggle the notification emails (immediate: HTMX on checkbox change)."""
+    if auth.impersonating:
+        raise HTTPException(403, NOTIFICATIONS_IMPERSONATION_FORBIDDEN)
+    await set_email_notifications(db, auth.user, form.enabled, source="settings", request=request)
+    await db.commit()
+    message = (
+        "Vous recevrez les emails de notification de planification."
+        if form.enabled
+        else "Vous ne recevrez plus les emails de notification de planification."
+    )
+    if is_htmx(request):
+        response = Response(status_code=204)
+        trigger_toast(response, message)
+        return response
+    redirect = RedirectResponse(SETTINGS_PAGE, status_code=303)
+    set_flash(redirect, message)
+    return redirect
+
+
+@router.get(f"{UNSUBSCRIBE_PATH}/{{token}}")
+async def unsubscribe(
+    request: Request, token: str, db: DbSession, settings: AppSettings
+) -> Response:
+    """One-click unsubscribe from a notification email (no login needed)."""
+    user_id = read_unsubscribe_token(settings, token)
+    user = await db.get(User, user_id) if user_id else None
+    if user is None:
+        return render(request, "account/unsubscribe_invalid.html", status_code=400)
+    await set_email_notifications(db, user, False, source="one_click_link", request=request)
+    await db.commit()
+    return render(request, "account/unsubscribed.html")
