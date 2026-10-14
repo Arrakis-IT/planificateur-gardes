@@ -7,12 +7,13 @@ Only the days covered by both generations are compared: days that left the perio
 days and vacations are out of scope (the attached PDF shows the full new schedule).
 `build_changelog` is pure; `load_changelog` reads both generations from the database.
 
-Entry format (`describe_change`), "(sur place)" flags and red highlight:
+Entry format (`describe_change`), "(sur place)" flags and red highlight (any change that
+touches an on-site day):
 
 =================  ===============  ======================================  =========
 doctor             on-site          entry                                   highlight
 =================  ===============  ======================================  =========
-A → B              yes → yes        A (sur place) → B                       no
+A → B              yes → yes        A (sur place) → B                       yes
 A → B              no → no          A → B                                   no
 A → B              no → yes         A → B (sur place)                       yes
 A → B              yes → no         A (sur place) → B                       yes
@@ -74,15 +75,14 @@ def describe_change(before: DayState, after: DayState) -> tuple[str, bool] | Non
     """Entry text and highlight flag for one day, or None when nothing changed."""
     old_name = before.doctor or UNASSIGNED_LABEL
     new_name = after.doctor or UNASSIGNED_LABEL
-    onsite_changed = before.onsite != after.onsite
     if before.doctor == after.doctor:
-        if not onsite_changed:
+        if before.onsite == after.onsite:
             return None
         status = "devenu sur place" if after.onsite else "n'est plus sur place"
         return f"{new_name} ({status})", True
     left = old_name + (ONSITE_SUFFIX if before.onsite else "")
     right = new_name + (ONSITE_SUFFIX if after.onsite and not before.onsite else "")
-    return f"{left} → {right}", onsite_changed
+    return f"{left} → {right}", before.onsite or after.onsite
 
 
 def build_changelog(

@@ -17,7 +17,7 @@ A, B = "Dr. Jean Dupont", "Dr. Marie Richard"
     ("before", "after", "expected"),
     [
         # Rows of the confirmed format table.
-        (DayState(A, True), DayState(B, True), (f"{A} (sur place) → {B}", False)),
+        (DayState(A, True), DayState(B, True), (f"{A} (sur place) → {B}", True)),
         (DayState(A, False), DayState(B, False), (f"{A} → {B}", False)),
         (DayState(A, False), DayState(B, True), (f"{A} → {B} (sur place)", True)),
         (DayState(A, True), DayState(B, False), (f"{A} (sur place) → {B}", True)),
@@ -29,7 +29,7 @@ A, B = "Dr. Jean Dupont", "Dr. Marie Richard"
         (DayState(None, False), DayState(A, False), (f"non assigné → {A}", False)),
         (DayState(A, False), DayState(None, False), (f"{A} → non assigné", False)),
         (DayState(None, False), DayState(A, True), (f"non assigné → {A} (sur place)", True)),
-        (DayState(A, True), DayState(None, True), (f"{A} (sur place) → non assigné", False)),
+        (DayState(A, True), DayState(None, True), (f"{A} (sur place) → non assigné", True)),
         (DayState(None, False), DayState(None, True), ("non assigné (devenu sur place)", True)),
         (DayState(None, False), DayState(None, False), None),
     ],

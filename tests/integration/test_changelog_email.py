@@ -127,7 +127,7 @@ async def test_overlap_with_every_kind_of_change(client, db, team, mailer, plan)
     await _generate(client, apr(3), apr(15))
 
     expected = [
-        ("3 avril 2027", f"{DUPONT} (sur place) → {RICHARD}", False),
+        ("3 avril 2027", f"{DUPONT} (sur place) → {RICHARD}", True),  # on-site day: red
         ("4 avril 2027", f"{DUPONT} → {RICHARD}", False),
         ("5 avril 2027", f"{DUPONT} → {RICHARD} (sur place)", True),
         ("6 avril 2027", f"{DUPONT} (sur place) → {RICHARD}", True),
@@ -178,4 +178,4 @@ async def test_legacy_generation_without_snapshot_uses_settings(client, db, team
     await db.commit()
     plan[apr(3)] = RICHARD
     await _generate(client, apr(1), apr(5))
-    assert f"- 3 avril 2027 : {DUPONT} (sur place) → {RICHARD}" in _last_email(mailer).text
+    assert f"! 3 avril 2027 : {DUPONT} (sur place) → {RICHARD}" in _last_email(mailer).text
