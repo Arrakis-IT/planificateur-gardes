@@ -9,9 +9,9 @@ Période précédente : du {{ changelog.previous.start|short_date }} au {{ chang
 {% if changelog.entries %}{% if changelog.entries|selectattr("highlight")|list %}(Les lignes marquées « ! » signalent un changement de présence sur place.)
 {% endif %}
 {% for entry in changelog.entries %}{{ "! " if entry.highlight else "- " }}{{ entry.label }}
-{% endfor %}{% else %}Aucun changement sur la période partagée.
+{% endfor %}{% else %}
+Aucun changement sur la période partagée.
 {% endif %}{% endif %}
-
 Vous pouvez consulter et modifier la planification à tout moment sur {{ app_url }}.
 
 ---
