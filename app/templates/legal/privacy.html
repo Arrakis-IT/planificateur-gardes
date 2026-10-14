@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Politique de confidentialité{% endblock %}
+{% block content %}
+<article class="panel legal">
+  <h1>Politique de confidentialité</h1>
+  <p class="updated">Dernière mise à jour : 14 octobre 2026</p>
+
+  <p>
+    La présente politique décrit la manière dont les données personnelles des utilisateurs du
+    service « Planificateur des gardes » sont traitées, conformément au règlement (UE) 2016/679
+    (« RGPD ») et à la loi luxembourgeoise du 1<sup>er</sup> août 2018 portant organisation de la
+    Commission nationale pour la protection des données.
+  </p>
+
+  <h2>1. Responsable du traitement</h2>
+  <p>
+    Arrakis IT Services, 16, rue du X Septembre, L-8048 Strassen, Luxembourg —
+    <a href="mailto:info@arrakis.lu">info@arrakis.lu</a>.
+  </p>
+
+  <h2>2. Finalité du traitement</h2>
+  <p>
+    Les données sont traitées exclusivement pour la gestion des gardes médicales des groupes
+    utilisateurs du service : gestion des comptes, établissement et diffusion des plannings de
+    garde, prise en compte des congés et des jours de présence sur place, envoi des notifications
+    par e-mail, ainsi que la sécurité et la traçabilité du service.
+  </p>
+
+  <h2>3. Données traitées</h2>
+  <ul>
+    <li>Données d'identification : nom, adresse e-mail, code médecin, groupe de rattachement.</li>
+    <li>Données de planification : affectations de garde, jours de congé, jours de présence sur place.</li>
+    <li>Journaux de connexion et d'activité : date et heure, adresse IP, type de navigateur, actions effectuées.</li>
+  </ul>
+  <p>Les mots de passe ne sont jamais conservés en clair (empreinte argon2id uniquement).</p>
+
+  <h2>4. Base légale</h2>
+  <p>
+    Le traitement est nécessaire à l'exécution du contrat conclu avec le groupe utilisateur
+    (article 6, paragraphe 1, point b du RGPD). Les journaux de connexion et d'activité reposent sur
+    l'intérêt légitime de l'éditeur à assurer la sécurité du service et la traçabilité des
+    modifications (article 6, paragraphe 1, point f du RGPD).
+  </p>
+
+  <h2>5. Destinataires</h2>
+  <p>
+    Les plannings sont visibles par les membres du groupe concerné. Aucune donnée n'est vendue ni
+    cédée à des tiers. Seuls les prestataires techniques suivants y ont accès, dans la limite de
+    leur mission :
+  </p>
+  <ul>
+    <li>Hetzner Online GmbH (Allemagne) : hébergement des serveurs et de la base de données, dans l'Union européenne ;</li>
+    <li>Brevo (Sendinblue SAS, France) : envoi des e-mails de service (invitations, réinitialisation du mot de passe, plannings) ;</li>
+    <li>Sentry (Functional Software, Inc.) : suivi des erreurs techniques, lorsqu'il est activé ; les données personnelles sont retirées ou masquées avant tout envoi ;</li>
+    <li>Cloudflare, Inc. : vérification anti-robot (Turnstile) sur les pages de connexion et de réinitialisation du mot de passe, qui traite l'adresse IP et des caractéristiques techniques du navigateur.</li>
+  </ul>
+  <p>
+    Lorsqu'un prestataire est susceptible de traiter des données hors de l'Espace économique
+    européen, le transfert est encadré par les garanties prévues au chapitre V du RGPD (décision
+    d'adéquation ou clauses contractuelles types de la Commission européenne).
+  </p>
+
+  <h2>6. Durée de conservation</h2>
+  <ul>
+    <li>Données du compte et de planification : pendant toute la durée d'utilisation du service par le groupe ; elles sont supprimées à la suppression du compte, sous réserve des journaux ci-dessous.</li>
+    <li>Journaux de connexion et d'activité : pendant la durée du contrat avec le groupe, à des fins de sécurité et de traçabilité.</li>
+    <li>Sessions de connexion : 14 jours au maximum ; liens de réinitialisation : 60 minutes ; liens d'invitation : 72 heures.</li>
+    <li>Sauvegardes de la base de données : 14 jours, par rotation.</li>
+  </ul>
+
+  <h2>7. Vos droits</h2>
+  <p>
+    Vous disposez d'un droit d'accès, de rectification, d'effacement, de limitation du traitement,
+    de portabilité et d'opposition à l'égard de vos données. Votre nom peut être modifié à tout
+    moment dans les paramètres de votre compte.
+  </p>
+  <p>
+    Pour exercer ces droits, écrivez à <a href="mailto:info@arrakis.lu">info@arrakis.lu</a> en
+    précisant votre nom et l'adresse e-mail de votre compte. Une réponse vous sera apportée dans un
+    délai d'un mois. Vous pouvez également introduire une réclamation auprès de la Commission
+    nationale pour la protection des données (CNPD, <a href="https://cnpd.public.lu">cnpd.public.lu</a>).
+  </p>
+
+  <h2>8. Délégué à la protection des données</h2>
+  <p>
+    Compte tenu de la nature et du volume des traitements, aucun délégué à la protection des
+    données n'a été désigné. Toute question peut être adressée à
+    <a href="mailto:info@arrakis.lu">info@arrakis.lu</a>.
+  </p>
+
+  <h2>9. Cookies</h2>
+  <p>
+    Le service utilise uniquement des cookies techniques, strictement nécessaires à son
+    fonctionnement, qui ne requièrent pas de consentement :
+  </p>
+  <ul>
+    <li><code>pg_session</code> : maintien de la connexion (14 jours au maximum) ;</li>
+    <li><code>csrftoken</code> : protection des formulaires contre les requêtes frauduleuses (durée de la session du navigateur) ;</li>
+    <li><code>flash</code> : affichage d'un message de confirmation (une minute).</li>
+  </ul>
+  <p>Aucun cookie de mesure d'audience ou publicitaire n'est utilisé.</p>
+</article>
+{% endblock %}

@@ -70,6 +70,15 @@
     <main>
       {% block content %}{% endblock %}
     </main>
+
+    <footer class="site-footer">
+      <nav aria-label="Informations légales">
+        <a href="/mentions-legales">Mentions légales</a>
+        <a href="/politique-confidentialite">Politique de confidentialité</a>
+        <a href="/cgu">Conditions générales d'utilisation</a>
+      </nav>
+      <p>© Arrakis IT Services</p>
+    </footer>
   </div>
   <div id="modal"></div>
   {% if clinic_ctx %}{% include "partials/_tabbar.html" %}{% endif %}
