@@ -286,13 +286,18 @@ async def test_invitation_flow_end_to_end(admin_client, app, db, mailer, make_cl
 
         form = await doc.get(link)
         assert form.status_code == 200 and "Bienvenue" in form.text
+        assert 'name="accept_terms"' in form.text
+        assert 'href="/cgu"' in form.text and 'href="/politique-confidentialite"' in form.text
+        good = {"password": "first-password-42", "password_confirm": "first-password-42"}
         mismatch = await post_form(
-            doc, link, {"password": "first-password-42", "password_confirm": "other-password-42"}
+            doc, link, good | {"password_confirm": "other-password-42", "accept_terms": "true"}
         )
         assert mismatch.status_code == 400
-        done = await post_form(
-            doc, link, {"password": "first-password-42", "password_confirm": "first-password-42"}
-        )
+        # The terms checkbox is mandatory: nothing is stored without it.
+        no_terms = await post_form(doc, link, good)
+        assert no_terms.status_code == 400 and "Vous devez accepter" in no_terms.text
+        assert (await doc.get(link)).status_code == 200  # token still valid
+        done = await post_form(doc, link, good | {"accept_terms": "true"})
         assert done.status_code == 303 and done.headers["location"] == "/login"
         assert (await doc.get(link)).status_code == 400  # single use
 
@@ -302,10 +307,17 @@ async def test_invitation_flow_end_to_end(admin_client, app, db, mailer, make_cl
 
     user = await db.scalar(select(User).where(User.email == "invite@ex.lu"))
     assert not user.must_change_password
+    assert user.accepted_terms_at is not None
     actions = (
         await db.scalars(select(AuditLog.action).where(AuditLog.target_id == str(user.id)))
     ).all()
-    assert {"user_created", "invitation_sent", "password_changed", "login"} <= set(actions)
+    assert {
+        "user_created",
+        "invitation_sent",
+        "password_changed",
+        "terms_accepted",
+        "login",
+    } <= set(actions)
     via = await db.scalar(
         select(AuditLog.meta).where(
             AuditLog.action == "password_changed", AuditLog.target_id == str(user.id)

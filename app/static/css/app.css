@@ -173,6 +173,7 @@ button.link:hover { color: var(--accent); background: none; }
 }
 .checkbox { display: flex; gap: 8px; align-items: center; }
 .checkbox label { margin: 0; }
+.checkbox label.plain-label { text-transform: none; letter-spacing: normal; font-size: 14px; color: var(--ink); }
 
 .muted { color: var(--ink-soft); }
 .mono, code { font-family: var(--font-mono); font-size: 13px; }

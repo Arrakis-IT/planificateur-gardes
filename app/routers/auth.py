@@ -3,6 +3,7 @@
 
 """Login, logout, password reset and invitation routes (anonymous-facing)."""
 
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -18,7 +19,7 @@ from app.dependencies import (
     safe_next_path,
 )
 from app.middleware.rate_limit import limiter, login_limit, reset_limit
-from app.schemas.forms import LoginForm, NewPasswordForm, ResetRequestForm
+from app.schemas.forms import InvitationForm, LoginForm, NewPasswordForm, ResetRequestForm
 from app.services import audit
 from app.services.auth import (
     SESSION_COOKIE_NAME,
@@ -154,6 +155,9 @@ DONE_MESSAGES: dict[PasswordLink, str] = {
     "reset": "Votre mot de passe a été modifié. Vous pouvez vous connecter.",
     "invitation": "Votre mot de passe est enregistré. Vous pouvez vous connecter.",
 }
+TERMS_REQUIRED = (
+    "Vous devez accepter les conditions générales d'utilisation et la politique de confidentialité."
+)
 
 
 async def _password_link_form(
@@ -173,10 +177,25 @@ async def _password_link_submit(
     if found is None:
         return render(request, "auth/reset_invalid.html", context, 400)
     reset_token, user = found
-    error = validate_new_password(form.password, form.password_confirm, user.email)
+    accepts_terms = isinstance(form, InvitationForm) and form.accept_terms
+    if kind == "invitation" and not accepts_terms:
+        error: str | None = TERMS_REQUIRED
+    else:
+        error = validate_new_password(form.password, form.password_confirm, user.email)
     if error:
         return render(request, "auth/reset_form.html", context | {"error": error}, 400)
     await complete_password_reset(db, reset_token, user, form.password, request, via=kind)
+    if accepts_terms:
+        user.accepted_terms_at = datetime.now(UTC)
+        audit.record(
+            db,
+            "terms_accepted",
+            request=request,
+            user_id=user.id,
+            clinic_id=user.clinic_id,
+            target_type="user",
+            target_id=user.id,
+        )
     await db.commit()
     response = RedirectResponse("/login", status_code=303)
     set_flash(response, DONE_MESSAGES[kind])
@@ -205,7 +224,7 @@ async def invitation_form(request: Request, token: str, db: DbSession) -> Respon
 
 @router.post("/invitation/{token}")
 async def invitation_submit(
-    request: Request, token: str, form: Annotated[NewPasswordForm, Form()], db: DbSession
+    request: Request, token: str, form: Annotated[InvitationForm, Form()], db: DbSession
 ) -> Response:
-    """Consume the invitation token and set the first password."""
+    """Consume the invitation token and set the first password (terms must be accepted)."""
     return await _password_link_submit(request, db, "invitation", token, form)

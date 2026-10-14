@@ -62,3 +62,19 @@ async def test_footer_on_authenticated_pages(client, db, make_clinic, make_user)
     page = await client.get("/")
     assert page.status_code == 200
     assert all(link in page.text for link in FOOTER_LINKS)
+
+
+async def test_reset_form_has_no_terms_checkbox(client, db, mailer, make_clinic, make_user):
+    """Only the first password (invitation) asks for the terms; a reset does not."""
+    from tests.conftest import post_form
+
+    user = await make_user("doc@ex.lu", clinic=await make_clinic())
+    await post_form(client, "/reset", {"email": "doc@ex.lu"})
+    link = mailer.last_link()
+    assert 'name="accept_terms"' not in (await client.get(link)).text
+    done = await post_form(
+        client, link, {"password": "a-new-password-42", "password_confirm": "a-new-password-42"}
+    )
+    assert done.status_code == 303
+    await db.refresh(user)
+    assert user.accepted_terms_at is None

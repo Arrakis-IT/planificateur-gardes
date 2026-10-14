@@ -50,6 +50,12 @@ class NewPasswordForm(_Form):
     password_confirm: Password
 
 
+class InvitationForm(NewPasswordForm):
+    """POST /invitation/{token}: first password + mandatory acceptance of the terms."""
+
+    accept_terms: bool = False
+
+
 class ChangePasswordForm(NewPasswordForm):
     """POST /parametres/mot-de-passe."""
 

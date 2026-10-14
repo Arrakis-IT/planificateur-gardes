@@ -57,6 +57,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the user accepted the CGU and privacy policy (checkbox of the invitation form).
+    accepted_terms_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Loaded eagerly: async sessions cannot lazy-load on attribute access.
     clinic: Mapped[Clinic | None] = relationship(lazy="selectin")
