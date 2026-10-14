@@ -2,10 +2,10 @@
 <div id="vacation-calendar">
   <form method="post" action="/conges/toggle" hx-post="/conges/toggle" hx-target="#vacation-calendar" hx-swap="outerHTML">
     {{ csrf_input(request) }}
-    <input type="hidden" name="semestre" value="{{ semester }}">
+    <input type="hidden" name="debut" value="{{ debut }}">
     <div class="multi-month">
       {% for first in months %}{{ m.mini_month(first, period, marked, public_holidays, 'holiday') }}{% endfor %}
     </div>
   </form>
-  <div class="holiday-summary">{{ marked|length }} jour{{ 's' if marked|length > 1 }} de congés sur ce semestre.</div>
+  <div class="holiday-summary">{{ marked|length }} jour{{ 's' if marked|length > 1 }} de congés sur cette période.</div>
 </div>

@@ -5,10 +5,13 @@
 
 Calendars are forms whose day buttons submit `date`; HTMX swaps the calendar fragment,
 and without JavaScript the same form falls back to POST + redirect.
+
+Both pages show WINDOW_MONTHS months starting at `debut` (YYYY-MM, default: the current
+month) and move one month at a time.
 """
 
 import uuid
-from datetime import date, timedelta
+from datetime import date
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, Request
@@ -26,8 +29,11 @@ from app.templating import render, set_flash
 router = APIRouter(tags=["holidays"])
 
 
-def _semester(value: str | None) -> cal.Period:
-    return cal.parse_semester(value) or cal.next_semester(cal.today_local())
+WINDOW_MONTHS = 8  # fills the 4 x 2 desktop grid
+
+
+def _window(value: str | None) -> cal.Period:
+    return cal.month_window(cal.parse_month(value, cal.today_local()), WINDOW_MONTHS)
 
 
 def _is_htmx(request: Request) -> bool:
@@ -39,10 +45,10 @@ async def _calendar_context(
 ) -> dict[str, Any]:
     return {
         "period": period,
-        "semester": cal.semester_key(period),
-        "semester_label": cal.semester_label(period),
-        "prev_semester": cal.semester_key(cal.previous_semester(period)),
-        "next_semester": cal.semester_key(cal.semester_of(period.end + timedelta(days=1))),
+        "debut": cal.month_key(period.start),
+        "period_label": cal.period_label(period),
+        "prev_debut": cal.month_key(cal.add_months(period.start, -1)),
+        "next_debut": cal.month_key(cal.add_months(period.start, 1)),
         "months": cal.months_between(period.start, period.end),
         "marked": marked,
         "public_holidays": await public_holidays(db, clinic_id, period.start, period.end),
@@ -67,10 +73,10 @@ async def vacations(
     auth: ClinicAuth,
     clinic_id: ClinicScope,
     db: DbSession,
-    semestre: str | None = None,
+    debut: str | None = None,
 ) -> Response:
-    """The current user's vacation days, one semester at a time."""
-    return await _vacations_page(request, auth, clinic_id, db, _semester(semestre))
+    """The current user's vacation days over the month window."""
+    return await _vacations_page(request, auth, clinic_id, db, _window(debut))
 
 
 @router.post("/conges/toggle")
@@ -94,10 +100,10 @@ async def vacation_toggle(
         meta={"date": form.date.isoformat()},
     )
     await db.commit()
-    period = _semester(form.semestre)
+    period = _window(form.debut)
     if _is_htmx(request):
         return await _vacations_page(request, auth, clinic_id, db, period)
-    return RedirectResponse(f"/conges?semestre={cal.semester_key(period)}", status_code=303)
+    return RedirectResponse(f"/conges?debut={cal.month_key(period.start)}", status_code=303)
 
 
 @router.post("/conges/periode")
@@ -109,8 +115,8 @@ async def vacation_range(
     db: DbSession,
 ) -> Response:
     """Add (or remove) a whole range of vacation days."""
-    period = _semester(form.semestre)
-    target = f"/conges?semestre={cal.semester_key(period)}"
+    period = _window(form.debut)
+    target = f"/conges?debut={cal.month_key(period.start)}"
     if form.start > form.end:
         response = RedirectResponse(target, status_code=303)
         set_flash(response, "La date de début doit précéder la date de fin.", "error")
@@ -159,10 +165,10 @@ async def onsite(
     auth: ClinicAuth,
     clinic_id: ClinicScope,
     db: DbSession,
-    semestre: str | None = None,
+    debut: str | None = None,
 ) -> Response:
     """The clinic's on-site days (editable by every user of the clinic)."""
-    return await _onsite_page(request, clinic_id, db, _semester(semestre))
+    return await _onsite_page(request, clinic_id, db, _window(debut))
 
 
 @router.post("/sur-place/toggle")
@@ -185,7 +191,7 @@ async def onsite_toggle(
         meta={"date": form.date.isoformat()},
     )
     await db.commit()
-    period = _semester(form.semestre)
+    period = _window(form.debut)
     if _is_htmx(request):
         return await _onsite_page(request, clinic_id, db, period)
-    return RedirectResponse(f"/sur-place?semestre={cal.semester_key(period)}", status_code=303)
+    return RedirectResponse(f"/sur-place?debut={cal.month_key(period.start)}", status_code=303)

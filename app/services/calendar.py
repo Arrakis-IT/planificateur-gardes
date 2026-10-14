@@ -51,37 +51,6 @@ def next_semester(today: date) -> Period:
     return semester_of(semester_of(today).end + timedelta(days=1))
 
 
-def previous_semester(period: Period) -> Period:
-    """The semester before `period`'s semester."""
-    return semester_of(period.start - timedelta(days=1))
-
-
-def parse_semester(value: str | None) -> Period | None:
-    """Parse "2027-1" / "2027-2" into a semester period."""
-    if not value:
-        return None
-    try:
-        year_s, half_s = value.split("-", 1)
-        year, half = int(year_s), int(half_s)
-    except ValueError:
-        return None
-    if half not in (1, 2) or not 2000 <= year <= 2100:
-        return None
-    return semester_of(date(year, 1 if half == 1 else 7, 1))
-
-
-def semester_key(period: Period) -> str:
-    """Inverse of parse_semester for a semester period."""
-    return f"{period.start.year}-{1 if period.start.month == 1 else 2}"
-
-
-def semester_label(period: Period) -> str:
-    """French label, e.g. "janvier – juin 2027"."""
-    return (
-        f"{MONTHS_FR[period.start.month - 1]} – {MONTHS_FR[period.end.month - 1]} {period.end.year}"
-    )
-
-
 def parse_month(value: str | None, default: date) -> date:
     """Parse "YYYY-MM" into the first day of that month (fallback: month of `default`)."""
     try:
@@ -111,6 +80,24 @@ def add_months(first_of_month: date, months: int) -> date:
     """First day of the month `months` away."""
     index = first_of_month.year * 12 + first_of_month.month - 1 + months
     return date(index // 12, index % 12 + 1, 1)
+
+
+def month_key(first_of_month: date) -> str:
+    """Inverse of parse_month, e.g. "2027-05"."""
+    return f"{first_of_month.year:04d}-{first_of_month.month:02d}"
+
+
+def month_window(first_of_month: date, months: int) -> Period:
+    """`months` whole months starting with `first_of_month`."""
+    return Period(first_of_month, add_months(first_of_month, months) - timedelta(days=1))
+
+
+def period_label(period: Period) -> str:
+    """French label of a month range, e.g. "octobre 2026 – mai 2027" or "mars – octobre 2027"."""
+    start = MONTHS_FR[period.start.month - 1]
+    if period.start.year != period.end.year:
+        start += f" {period.start.year}"
+    return f"{start} – {MONTHS_FR[period.end.month - 1]} {period.end.year}"
 
 
 def months_between(start: date, end: date) -> list[date]:

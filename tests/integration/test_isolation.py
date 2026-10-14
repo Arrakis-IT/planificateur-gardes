@@ -143,8 +143,8 @@ async def clinic_b_data(db, two_clinics):
         "/semaine?date=2027-05-12",
         "/mois?mois=2027-05",
         "/resultats",
-        "/conges?semestre=2027-1",
-        "/sur-place?semestre=2027-1",
+        "/conges?debut=2027-01",
+        "/sur-place?debut=2027-01",
         "/generer/medecins?period_from=2027-05-01&period_to=2027-05-31",
     ],
 )

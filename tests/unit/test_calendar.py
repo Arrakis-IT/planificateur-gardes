@@ -23,14 +23,14 @@ def test_next_semester_default_period(today, start, end):
     assert cal.next_semester(today) == cal.Period(start, end)
 
 
-def test_semester_keys_roundtrip_and_navigation():
-    period = cal.parse_semester("2027-2")
-    assert period == cal.Period(date(2027, 7, 1), date(2027, 12, 31))
-    assert cal.semester_key(period) == "2027-2"
-    assert cal.semester_key(cal.previous_semester(period)) == "2027-1"
-    assert cal.semester_label(period) == "juillet – décembre 2027"
-    for bad in (None, "", "2027", "2027-3", "abcd-1", "1900-1"):
-        assert cal.parse_semester(bad) is None
+def test_month_window_key_and_label():
+    window = cal.month_window(date(2026, 10, 1), 8)
+    assert window == cal.Period(date(2026, 10, 1), date(2027, 5, 31))
+    assert len(cal.months_between(window.start, window.end)) == 8
+    assert cal.period_label(window) == "octobre 2026 – mai 2027"
+    assert cal.period_label(cal.month_window(date(2027, 3, 1), 8)) == "mars – octobre 2027"
+    assert cal.month_key(date(2027, 5, 1)) == "2027-05"
+    assert cal.parse_month(cal.month_key(date(2027, 5, 1)), date(2000, 1, 1)) == date(2027, 5, 1)
 
 
 def test_parse_month_and_day_fallbacks():

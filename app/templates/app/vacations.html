@@ -4,7 +4,7 @@
 <section class="panel">
   <div class="panel-header">
     <h1>Mes congés</h1>
-    {% with base='/conges' %}{% include "partials/_semester_nav.html" %}{% endwith %}
+    {% with base='/conges' %}{% include "partials/_month_window_nav.html" %}{% endwith %}
   </div>
   <p class="muted">Cliquez sur un jour pour l'ajouter ou le retirer.</p>
   {% include "partials/_vacation_calendar.html" %}
@@ -14,7 +14,7 @@
   <h2>Ajouter ou retirer une période</h2>
   <form method="post" action="/conges/periode" class="row">
     {{ csrf_input(request) }}
-    <input type="hidden" name="semestre" value="{{ semester }}">
+    <input type="hidden" name="debut" value="{{ debut }}">
     <div><label for="start">Du</label><input type="date" id="start" name="start" required></div>
     <div><label for="end">Au</label><input type="date" id="end" name="end" required></div>
     <button type="submit" name="action" value="add" class="primary">Ajouter</button>

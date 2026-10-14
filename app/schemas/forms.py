@@ -76,14 +76,14 @@ class ProfileForm(_Form):
     full_name: FullName
 
 
-SemesterKey = Annotated[str, StringConstraints(max_length=7)]
+MonthKey = Annotated[str, StringConstraints(max_length=7)]
 
 
 class DayForm(_Form):
     """Toggle one day (vacation or on-site)."""
 
     date: date_type
-    semestre: SemesterKey | None = None
+    debut: MonthKey | None = None
 
 
 class RangeForm(_Form):
@@ -92,7 +92,7 @@ class RangeForm(_Form):
     start: date_type
     end: date_type
     action: Literal["add", "remove"] = "add"
-    semestre: SemesterKey | None = None
+    debut: MonthKey | None = None
 
 
 class GenerateForm(_Form):

@@ -28,18 +28,36 @@ async def _vacations(db, user):
     return set((await db.scalars(select(Holiday.date).where(Holiday.user_id == user.id))).all())
 
 
-async def test_vacation_page_shows_semester(client, db, doctor):
-    page = await client.get("/conges?semestre=2027-1")
+async def test_vacation_page_shows_eight_months(client, db, doctor):
+    page = await client.get("/conges?debut=2027-01")
     assert page.status_code == 200
-    assert "Janvier – juin 2027".lower() in page.text.lower()
-    assert page.text.count('class="mini-month"') == 6
-    assert 'value="2027-06-30"' in page.text and 'value="2027-07-01"' not in page.text
+    assert "janvier – août 2027" in page.text
+    assert page.text.count('class="mini-month"') == 8
+    assert 'value="2026-12-31"' not in page.text and 'value="2027-01-01"' in page.text
+    assert 'value="2027-08-31"' in page.text and 'value="2027-09-01"' not in page.text
+    # One month per step.
+    assert 'href="/conges?debut=2026-12"' in page.text and "Précédent<" in page.text
+    assert 'href="/conges?debut=2027-02"' in page.text and ">Suivant" in page.text
+
+
+@pytest.mark.parametrize(
+    "url", ["/conges", "/sur-place", "/conges?debut=nope", "/sur-place?semestre=2027-1"]
+)
+async def test_calendar_pages_start_at_current_month(client, db, doctor, monkeypatch, url):
+    monkeypatch.setattr("app.services.calendar.today_local", lambda now=None: date(2026, 10, 14))
+    page = await client.get(url)
+    assert page.status_code == 200
+    assert "octobre 2026 – mai 2027" in page.text
+    assert page.text.count('class="mini-month"') == 8
+    assert 'value="2026-10-01"' in page.text and 'value="2027-05-31"' in page.text
+    assert 'name="debut" value="2026-10"' in page.text
+    assert "semestre" not in page.text.lower()
 
 
 async def test_toggle_vacation_htmx_and_plain(client, db, doctor):
     fragment = await client.post(
         "/conges/toggle",
-        data=with_csrf({"date": "2027-02-15", "semestre": "2027-1"}),
+        data=with_csrf({"date": "2027-02-15", "debut": "2027-01"}),
         headers=HTMX,
     )
     assert fragment.status_code == 200
@@ -47,8 +65,8 @@ async def test_toggle_vacation_htmx_and_plain(client, db, doctor):
     assert "<html" not in fragment.text
     assert await _vacations(db, doctor) == {date(2027, 2, 15)}
 
-    plain = await post_form(client, "/conges/toggle", {"date": "2027-02-15", "semestre": "2027-1"})
-    assert plain.status_code == 303 and plain.headers["location"] == "/conges?semestre=2027-1"
+    plain = await post_form(client, "/conges/toggle", {"date": "2027-02-15", "debut": "2027-01"})
+    assert plain.status_code == 303 and plain.headers["location"] == "/conges?debut=2027-01"
     assert await _vacations(db, doctor) == set()
     assert (
         await db.scalar(select(func.count(AuditLog.id)).where(AuditLog.action.like("vacation%")))
@@ -79,7 +97,7 @@ async def test_onsite_toggle(client, db, doctor):
     assert [(r.date, r.created_by) for r in rows] == [(date(2027, 3, 10), doctor.id)]
     fragment = await client.post(
         "/sur-place/toggle",
-        data=with_csrf({"date": "2027-03-10", "semestre": "2027-1"}),
+        data=with_csrf({"date": "2027-03-10", "debut": "2027-01"}),
         headers=HTMX,
     )
     assert 'id="onsite-calendar"' in fragment.text
