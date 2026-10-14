@@ -19,6 +19,7 @@ from app.services.turnstile import FORM_FIELD as TURNSTILE_FIELD
 Password = Annotated[str, StringConstraints(max_length=1024)]
 EmailInput = Annotated[str, StringConstraints(strip_whitespace=True, max_length=254)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)]
 
 
 class _Form(BaseModel):
@@ -64,11 +65,15 @@ class UserCreateForm(_Form):
     """POST /admin/users."""
 
     email: EmailStr
-    full_name: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)
-    ]
+    full_name: FullName
     clinic_id: Annotated[str, StringConstraints(strip_whitespace=True, max_length=64)] = ""
     is_superadmin: bool = False
+
+
+class ProfileForm(_Form):
+    """POST /parametres/profil and /admin/users/{id}/rename."""
+
+    full_name: FullName
 
 
 SemesterKey = Annotated[str, StringConstraints(max_length=7)]

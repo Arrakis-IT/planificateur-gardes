@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Account settings: password change (also the forced-change screen)."""
+"""Account settings: profile (name) and password change (also the forced-change screen)."""
 
 from typing import Annotated
 
@@ -11,8 +11,9 @@ from starlette.responses import Response
 
 from app.dependencies import AppSettings, CurrentAuth, DbSession
 from app.routers.auth import set_session_cookie
-from app.schemas.forms import ChangePasswordForm
+from app.schemas.forms import ChangePasswordForm, ProfileForm
 from app.services.auth import create_session, set_password
+from app.services.profile import rename_user
 from app.services.security import validate_new_password, verify_password
 from app.templating import render, set_flash
 
@@ -20,6 +21,9 @@ router = APIRouter(tags=["account"])
 
 IMPERSONATION_FORBIDDEN = (
     "Impossible de changer le mot de passe d'un médecin dont vous avez pris l'identité."
+)
+PROFILE_IMPERSONATION_FORBIDDEN = (
+    "Impossible de modifier le profil d'un médecin dont vous avez pris l'identité."
 )
 
 
@@ -31,6 +35,23 @@ async def settings_page(request: Request, auth: CurrentAuth) -> Response:
         "account/settings.html",
         {"forced": auth.real_user.must_change_password, "impersonating": auth.impersonating},
     )
+
+
+@router.post(
+    "/parametres/profil", responses={403: {"description": PROFILE_IMPERSONATION_FORBIDDEN}}
+)
+async def update_profile(
+    request: Request, form: Annotated[ProfileForm, Form()], auth: CurrentAuth, db: DbSession
+) -> Response:
+    """Change the connected user's display name."""
+    if auth.impersonating:
+        raise HTTPException(403, PROFILE_IMPERSONATION_FORBIDDEN)
+    changed = rename_user(db, auth.user, form.full_name, request, actor_id=auth.user.id)
+    await db.commit()
+    response = RedirectResponse("/parametres", status_code=303)
+    if changed:
+        set_flash(response, "Votre nom a été modifié.")
+    return response
 
 
 @router.post("/parametres/mot-de-passe", responses={403: {"description": IMPERSONATION_FORBIDDEN}})

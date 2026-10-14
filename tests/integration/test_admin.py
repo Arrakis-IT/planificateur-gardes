@@ -360,6 +360,62 @@ async def test_invalid_invitation_link(client, db):
     assert submit.status_code == 400
 
 
+# --- User name -----------------------------------------------------------------------------
+
+
+async def test_admin_renames_user(admin_client, db, make_clinic, make_user):
+    clinic = await make_clinic()
+    user = await make_user("nr@ex.lu", "Nicolas Rousseau", clinic=clinic)
+    sheet = await admin_client.get(f"/admin/users/{user.id}")
+    assert f'action="/admin/users/{user.id}/rename"' in sheet.text
+
+    response = await post_form(
+        admin_client, f"/admin/users/{user.id}/rename", {"full_name": "  Nicolas Roussel  "}
+    )
+    assert response.status_code == 303 and response.headers["location"] == f"/admin/users/{user.id}"
+    assert "Nom modifié." in (await admin_client.get(response.headers["location"])).text
+    await db.refresh(user)
+    assert user.full_name == "Nicolas Roussel" and user.doctor_code == "NR"  # code is stable
+    entry = await db.scalar(select(AuditLog).where(AuditLog.action == "user_renamed"))
+    assert entry.user_id == admin_client.admin.id and entry.target_id == str(user.id)
+    assert entry.meta == {"old": "Nicolas Rousseau", "new": "Nicolas Roussel"}
+
+    same = await post_form(
+        admin_client, f"/admin/users/{user.id}/rename", {"full_name": "Nicolas Roussel"}
+    )
+    assert same.status_code == 303
+    assert await db.scalar(select(func.count()).where(AuditLog.action == "user_renamed")) == 1
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x", "y" * 201])
+async def test_admin_rename_validation(admin_client, db, make_clinic, make_user, name):
+    user = await make_user("nr@ex.lu", clinic=await make_clinic())
+    response = await post_form(admin_client, f"/admin/users/{user.id}/rename", {"full_name": name})
+    assert response.status_code == 400
+    await db.refresh(user)
+    assert user.full_name == "Nicolas Rousseau"
+
+
+async def test_admin_rename_unknown_user_is_404(admin_client, db):
+    response = await post_form(
+        admin_client,
+        "/admin/users/00000000-0000-0000-0000-000000000000/rename",
+        {"full_name": "Personne"},
+    )
+    assert response.status_code == 404
+
+
+async def test_rename_requires_superadmin(client, db, make_clinic, make_user):
+    clinic = await make_clinic()
+    other = await make_user("other@ex.lu", "Autre Médecin", clinic=clinic)
+    await make_user("doc@ex.lu", clinic=clinic)
+    await login(client, "doc@ex.lu")
+    response = await post_form(client, f"/admin/users/{other.id}/rename", {"full_name": "Pirate"})
+    assert response.status_code == 403
+    await db.refresh(other)
+    assert other.full_name == "Autre Médecin"
+
+
 # =========================================================================================
 # Phase 8 — admin extras
 # =========================================================================================
@@ -475,6 +531,16 @@ async def test_password_change_blocked_while_impersonating(admin_client, db, cab
         },
     )
     assert response.status_code == 403
+
+
+async def test_profile_change_blocked_while_impersonating(admin_client, db, cabinet):
+    _, nr, _, _ = cabinet
+    await post_form(admin_client, f"/admin/users/{nr.id}/impersonate")
+    assert "/parametres/profil" not in (await admin_client.get("/parametres")).text
+    response = await post_form(admin_client, "/parametres/profil", {"full_name": "Hijacked"})
+    assert response.status_code == 403
+    await db.refresh(nr)
+    assert nr.full_name != "Hijacked"
 
 
 async def test_clinic_user_cannot_impersonate(client, db, cabinet):

@@ -6,6 +6,17 @@
   {% if forced %}
     <div class="alert alert-warn" role="alert">Vous devez choisir un nouveau mot de passe avant de continuer.</div>
   {% endif %}
+  {% if not forced and not auth.impersonating %}
+  <h2>Profil</h2>
+  <form method="post" action="/parametres/profil" class="stack">
+    {{ csrf_input(request) }}
+    <div>
+      <label for="full_name">Nom complet</label>
+      <input type="text" id="full_name" name="full_name" value="{{ auth.user.full_name }}" minlength="2" maxlength="200" autocomplete="name" required>
+    </div>
+    <button type="submit">Enregistrer le nom</button>
+  </form>
+  {% endif %}
   <h2>Changer le mot de passe</h2>
   {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
   <form method="post" action="/parametres/mot-de-passe" class="stack">

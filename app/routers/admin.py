@@ -15,11 +15,12 @@ from app.dependencies import AppSettings, DbSession, SuperadminAuth, require_sup
 from app.models import Clinic, User
 from app.repositories import clinics as clinics_repo
 from app.repositories import users as users_repo
-from app.schemas.forms import ClinicForm, UserCreateForm
+from app.schemas.forms import ClinicForm, ProfileForm, UserCreateForm
 from app.services import audit
 from app.services.auth import is_user_allowed, revoke_user_sessions, send_invitation, set_password
 from app.services.doctors import DoctorCodeError
 from app.services.mail import MailSender, get_mail_sender
+from app.services.profile import rename_user
 from app.services.security import generate_temporary_password, generate_token
 from app.templating import render, set_flash
 
@@ -314,6 +315,21 @@ async def user_resend_invitation(
             profile, "L'invitation n'a pas pu être envoyée. Réessayez plus tard.", "error"
         )
     return _redirect(profile, f"Invitation renvoyée à {user.email}.")
+
+
+@router.post("/users/{user_id}/rename")
+async def user_rename(
+    request: Request,
+    user_id: uuid.UUID,
+    form: Annotated[ProfileForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+) -> Response:
+    """Change a user's display name (the doctor code stays stable)."""
+    user = await _get_user_or_404(db, user_id)
+    changed = rename_user(db, user, form.full_name, request, actor_id=auth.real_user.id)
+    await db.commit()
+    return _redirect(f"{USERS_PAGE}/{user.id}", "Nom modifié." if changed else None)
 
 
 @router.post("/users/{user_id}/reset-password")

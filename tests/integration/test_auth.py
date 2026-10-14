@@ -62,6 +62,38 @@ async def test_header_greets_logged_in_user_only(client, db, make_clinic, make_u
     assert "Bonjour Juan Manuel" in (await client.get("/")).text
 
 
+async def test_profile_name_self_service(client, db, make_clinic, make_user):
+    user = await make_user("doc@example.lu", "Juan", clinic=await make_clinic())
+    await login(client, "doc@example.lu")
+    page = await client.get("/parametres")
+    assert "Profil" in page.text and 'value="Juan"' in page.text
+
+    response = await post_form(client, "/parametres/profil", {"full_name": " Juan Manuel "})
+    assert response.status_code == 303 and response.headers["location"] == "/parametres"
+    followed = await client.get("/parametres")
+    assert "Votre nom a été modifié." in followed.text and "Bonjour Juan Manuel" in followed.text
+    await db.refresh(user)
+    assert user.full_name == "Juan Manuel"
+    entry = await db.scalar(select(AuditLog).where(AuditLog.action == "user_renamed"))
+    assert entry.user_id == user.id and entry.meta == {"old": "Juan", "new": "Juan Manuel"}
+
+    for bad in ("", "  ", "J", "x" * 201):
+        assert (
+            await post_form(client, "/parametres/profil", {"full_name": bad})
+        ).status_code == 400
+    await db.refresh(user)
+    assert user.full_name == "Juan Manuel"
+
+
+async def test_profile_hidden_while_password_change_is_forced(client, db, make_clinic, make_user):
+    await make_user("doc@example.lu", clinic=await make_clinic(), must_change_password=True)
+    await login(client, "doc@example.lu")
+    page = await client.get("/parametres")
+    assert "/parametres/profil" not in page.text
+    blocked = await post_form(client, "/parametres/profil", {"full_name": "Autre Nom"})
+    assert blocked.status_code == 303 and blocked.headers["location"] == "/parametres"
+
+
 async def test_login_follows_safe_next_only(client, db, make_clinic, make_user):
     clinic = await make_clinic()
     await make_user("doc@example.lu", clinic=clinic)
