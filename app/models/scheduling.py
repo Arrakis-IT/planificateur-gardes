@@ -124,6 +124,10 @@ class Assignment(UUIDPrimaryKeyMixin, Base):
     date: Mapped[date] = mapped_column(Date, nullable=False)
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     onsite_removed: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    # Effective on-site status as last published (generation or saved edits, i.e. what the
+    # emailed PDF showed). On-site settings can change afterwards, so the changelog of the
+    # next generation compares against this snapshot. NULL: generated before 0.4.0.
+    onsite: Mapped[bool | None] = mapped_column(Boolean)
     edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

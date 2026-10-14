@@ -37,6 +37,7 @@ email_env = jinja2.Environment(
     autoescape=jinja2.select_autoescape(enabled_extensions=("html",), default=False),
     undefined=jinja2.StrictUndefined,
 )
+email_env.filters["short_date"] = cal.short_date
 
 
 def csrf_input(request: Request) -> Markup:

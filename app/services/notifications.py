@@ -6,6 +6,9 @@
 Runs as a background task after the response: it opens its own database session,
 renders the PDF once, sends one email per recipient (addresses are not disclosed to
 each other) and writes a `pdf_sent` audit entry with the outcome per recipient.
+
+After a regeneration, the email also lists the day-by-day changes against the archived
+generation on the days both cover (see app/services/changelog.py).
 """
 
 import logging
@@ -19,6 +22,7 @@ from app.config import get_settings
 from app.models import Clinic, Generation, User
 from app.repositories import users as users_repo
 from app.services import audit
+from app.services.changelog import Changelog, load_changelog
 from app.services.mail import Attachment, MailSender, OutgoingEmail
 from app.services.pdf import build_schedule_pdf, pdf_filename
 from app.templating import render_email
@@ -35,8 +39,9 @@ def build_schedule_email(
     actor_name: str,
     action: Action,
     pdf: bytes,
+    changelog: Changelog | None = None,
 ) -> OutgoingEmail:
-    """The French notification email with the PDF attached."""
+    """The French notification email with the PDF attached (and the changelog, if any)."""
     period_from = generation.period_from.strftime("%d/%m/%Y")
     period_to = generation.period_to.strftime("%d/%m/%Y")
     context = {
@@ -45,6 +50,7 @@ def build_schedule_email(
         "period_from": period_from,
         "period_to": period_to,
         "app_url": get_settings().app_base_url.rstrip("/"),
+        "changelog": changelog,
     }
     return OutgoingEmail(
         to=recipient.email,
@@ -62,8 +68,13 @@ async def send_schedule_notification(
     generation_id: uuid.UUID,
     actor_id: uuid.UUID,
     action: Action,
+    *,
+    previous_generation_id: uuid.UUID | None = None,
 ) -> None:
-    """Render the PDF and email it to all active users of the clinic, auditing the result."""
+    """Render the PDF and email it to all active users of the clinic, auditing the result.
+
+    `previous_generation_id`: the generation archived by this one (regeneration changelog).
+    """
     async with sessionmaker() as db:
         clinic = await db.get(Clinic, clinic_id)
         generation = await db.get(Generation, generation_id)
@@ -73,6 +84,13 @@ async def send_schedule_notification(
             return
         actor_name = actor.full_name if actor else "Un utilisateur"
         recipients = await users_repo.list_clinic_users(db, clinic_id)
+        changelog: Changelog | None = None
+        if previous_generation_id is not None:
+            try:
+                changelog = await load_changelog(db, clinic_id, previous_generation_id, generation)
+            except Exception:
+                # The schedule itself matters more than the changelog: send without it.
+                logger.exception("Changelog failed (generation=%s)", generation_id)
 
         results: list[dict[str, object]] = []
         error: str | None = None
@@ -92,7 +110,7 @@ async def send_schedule_notification(
         if pdf:
             for recipient in recipients:
                 message = build_schedule_email(
-                    recipient, clinic, generation, actor_name, action, pdf
+                    recipient, clinic, generation, actor_name, action, pdf, changelog
                 )
                 try:
                     await mailer.send(message)

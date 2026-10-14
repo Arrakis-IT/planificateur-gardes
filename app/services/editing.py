@@ -201,6 +201,8 @@ async def save_draft(
         changed += 1
     await drafts_repo.clear_drafts(db, clinic_id)
     await db.flush()
+    if changed:  # republished (and emailed): refresh what the next changelog compares with
+        await repo.snapshot_onsite(db, clinic_id, generation.id)
     return SaveResult(generation, changed)
 
 

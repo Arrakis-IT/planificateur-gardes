@@ -116,6 +116,14 @@ async def build_days(
 # --- Generate -------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class GenerationRun:
+    """The new active generation and the one it archived (for the changelog email)."""
+
+    generation: Generation
+    previous_id: uuid.UUID | None
+
+
 def validate_period(period_from: date, period_to: date) -> None:
     """Raise GenerationError for an unusable period."""
     if period_from >= period_to:
@@ -131,7 +139,7 @@ async def run_generation(
     period_from: date,
     period_to: date,
     request: Request | None = None,
-) -> Generation:
+) -> GenerationRun:
     """Run the scheduler, archive the active generation and store the new one. Caller commits."""
     validate_period(period_from, period_to)
     await repo.lock_clinic(db, clinic_id)
@@ -168,6 +176,7 @@ async def run_generation(
         actor.id,
         {day: (None if code == UNASSIGNED else user_of[code]) for day, code in result.items()},
     )
+    await repo.snapshot_onsite(db, clinic_id, generation.id)
     audit.record(
         db,
         "generation_created",
@@ -184,7 +193,7 @@ async def run_generation(
             "archived_generation": str(previous_id) if previous_id else None,
         },
     )
-    return generation
+    return GenerationRun(generation, previous_id)
 
 
 # --- Results statistics -----------------------------------------------------------------------

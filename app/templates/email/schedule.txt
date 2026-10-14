@@ -3,6 +3,14 @@ Bonjour,
 {{ actor_name }} vient de {{ verb }} la planification des gardes pour la période du {{ period_from }} au {{ period_to }}.
 
 Le document PDF est en pièce jointe.
+{% if changelog %}
+Changements par rapport à la planification précédente
+Période précédente : du {{ changelog.previous.start|short_date }} au {{ changelog.previous.end|short_date }} — Nouvelle période : du {{ changelog.current.start|short_date }} au {{ changelog.current.end|short_date }}
+{% if changelog.entries %}{% if changelog.entries|selectattr("highlight")|list %}(Les lignes marquées « ! » signalent un changement de présence sur place.)
+{% endif %}
+{% for entry in changelog.entries %}{{ "! " if entry.highlight else "- " }}{{ entry.label }}
+{% endfor %}{% else %}Aucun changement sur la période partagée.
+{% endif %}{% endif %}
 
 Vous pouvez consulter et modifier la planification à tout moment sur {{ app_url }}.
 

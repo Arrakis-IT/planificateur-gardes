@@ -10,7 +10,7 @@ import uuid
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, not_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Assignment, Clinic, CustomHoliday, Generation, Holiday, OnsiteDay, User
@@ -194,6 +194,42 @@ async def create_generation(
     )
     await db.flush()
     return generation
+
+
+async def snapshot_onsite(db: AsyncSession, clinic_id: uuid.UUID, generation_id: uuid.UUID) -> None:
+    """Store the effective on-site status of every cell (settings minus "removed").
+
+    Called whenever a generation is published (created, or edits saved) so that the next
+    generation's changelog compares against what the doctors were last sent.
+    """
+    in_settings = (
+        select(OnsiteDay.id)
+        .where(OnsiteDay.clinic_id == clinic_id, OnsiteDay.date == Assignment.date)
+        .exists()
+    )
+    await db.execute(
+        update(Assignment)
+        .where(
+            Assignment.generation_id == generation_id,
+            Assignment.generation_id.in_(
+                select(Generation.id).where(Generation.clinic_id == clinic_id)
+            ),
+        )
+        .values(onsite=and_(in_settings, not_(Assignment.onsite_removed)))
+        .execution_options(synchronize_session=False)
+    )
+
+
+async def generation_assignments(
+    db: AsyncSession, clinic_id: uuid.UUID, generation_id: uuid.UUID
+) -> dict[date, Assignment]:
+    """Every assignment of one generation of the clinic (active or archived)."""
+    stmt = (
+        select(Assignment)
+        .join(Generation, Generation.id == Assignment.generation_id)
+        .where(Generation.clinic_id == clinic_id, Generation.id == generation_id)
+    )
+    return {a.date: a for a in (await db.scalars(stmt)).all()}
 
 
 async def active_assignments(

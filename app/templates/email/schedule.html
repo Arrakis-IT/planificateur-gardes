@@ -8,6 +8,19 @@
   <p>Bonjour,</p>
   <p><strong>{{ actor_name }}</strong> vient de {{ verb }} la planification des gardes pour la période du {{ period_from }} au {{ period_to }}.</p>
   <p>Le document PDF est en pièce jointe.</p>
+  {% if changelog %}
+  <h2 style="font-size: 16px; color: #2d4a3e; margin: 24px 0 8px;">Changements par rapport à la planification précédente</h2>
+  <p style="color: #555; margin: 0 0 8px;">Période précédente : du {{ changelog.previous.start|short_date }} au {{ changelog.previous.end|short_date }} — Nouvelle période : du {{ changelog.current.start|short_date }} au {{ changelog.current.end|short_date }}</p>
+  {% if changelog.entries %}
+  <ul style="list-style: none; padding: 0; margin: 0 0 16px;">
+    {% for entry in changelog.entries %}
+    <li style="padding: 4px 8px; margin: 2px 0; border-radius: 3px;{% if entry.highlight %} background: #f8d7da; color: #6b1a1f;{% endif %}">{{ entry.label }}</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Aucun changement sur la période partagée.</p>
+  {% endif %}
+  {% endif %}
   <p>Vous pouvez consulter et modifier la planification à tout moment sur <a href="{{ app_url }}" style="color: #2d4a3e;">{{ app_url }}</a>.</p>
   <hr style="border: none; border-top: 1px solid #e5e3dc;">
   <p style="color: #999; font-size: 12px;">Arrakis IT Services · <a href="https://www.arrakis.lu" style="color: #999;">www.arrakis.lu</a></p>

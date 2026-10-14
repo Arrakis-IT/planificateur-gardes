@@ -128,6 +128,12 @@ def long_date(d: date) -> str:
     return f"{WEEKDAYS_FR[d.weekday()]} {d.day} {MONTHS_FR[d.month - 1]} {d.year}"
 
 
+def day_month_year(d: date) -> str:
+    """e.g. "4 avril 2027", "1er mai 2027"."""
+    day = "1er" if d.day == 1 else str(d.day)
+    return f"{day} {MONTHS_FR[d.month - 1]} {d.year}"
+
+
 def local_datetime(dt: datetime) -> str:
     """Timestamp in Luxembourg time, e.g. "11/10/2026 à 20:30"."""
     return dt.astimezone(CLINIC_TZ).strftime("%d/%m/%Y à %H:%M")

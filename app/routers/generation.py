@@ -114,7 +114,7 @@ async def generate(
             400,
         )
     try:
-        generation = await run_generation(
+        run = await run_generation(
             db, clinic_id, auth.user, form.period_from, form.period_to, request
         )
     except GenerationError as exc:
@@ -134,9 +134,10 @@ async def generate(
         get_sessionmaker(),
         mailer,
         clinic_id,
-        generation.id,
+        run.generation.id,
         auth.user.id,
         "generated",
+        previous_generation_id=run.previous_id,
     )
     response = RedirectResponse("/resultats", status_code=303)
     set_flash(response, "Planification générée. Le PDF est envoyé par e-mail à tous les médecins.")
