@@ -173,6 +173,7 @@ button.link:hover { color: var(--accent); background: none; }
 }
 .checkbox { display: flex; gap: 8px; align-items: center; }
 .checkbox label { margin: 0; }
+.terms-logout { margin-top: 12px; }
 .checkbox label.plain-label { text-transform: none; letter-spacing: normal; font-size: 14px; color: var(--ink); }
 
 .muted { color: var(--ink-soft); }

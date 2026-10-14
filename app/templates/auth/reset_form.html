@@ -19,12 +19,7 @@
       <label for="password_confirm">Confirmation</label>
       <input type="password" id="password_confirm" name="password_confirm" autocomplete="new-password" minlength="12" required>
     </div>
-    {% if kind == 'invitation' %}
-    <div class="checkbox">
-      <input type="checkbox" id="accept_terms" name="accept_terms" value="true" required>
-      <label for="accept_terms" class="plain-label">J'accepte les <a href="/cgu" target="_blank" rel="noopener">CGU</a> et la <a href="/politique-confidentialite" target="_blank" rel="noopener">politique de confidentialité</a></label>
-    </div>
-    {% endif %}
+    {% if kind == 'invitation' %}{% include "partials/_terms_checkbox.html" %}{% endif %}
     <button type="submit" class="primary">Enregistrer</button>
   </form>
 </section>

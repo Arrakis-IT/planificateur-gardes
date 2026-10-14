@@ -12,6 +12,7 @@ import os
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -191,6 +192,7 @@ def make_user(db: AsyncSession):  # type: ignore[no-untyped-def]
         must_change_password: bool = False,
         password: str = DEFAULT_PASSWORD,
         active: bool = True,
+        accepted_terms: bool = True,
     ) -> User:
         user = await users_repo.create_user(
             db,
@@ -202,6 +204,7 @@ def make_user(db: AsyncSession):  # type: ignore[no-untyped-def]
             must_change_password=must_change_password,
         )
         user.active = active
+        user.accepted_terms_at = datetime.now(UTC) if accepted_terms else None
         await db.commit()
         return user
 

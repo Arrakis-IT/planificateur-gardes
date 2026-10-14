@@ -20,8 +20,10 @@
 </head>
 {% set path = request.url.path %}
 {% set admin_page = path.startswith('/admin') %}
+{# Terms not accepted yet (users created before 0.6.0): only the acceptance page and logout. #}
+{% set terms_pending = auth and auth.real_user.accepted_terms_at is none %}
 {# Clinic pages: own clinic, impersonated user's clinic, or read-only view. #}
-{% set clinic_ctx = auth and auth.clinic and not admin_page and not auth.real_user.must_change_password %}
+{% set clinic_ctx = auth and auth.clinic and not admin_page and not auth.real_user.must_change_password and not terms_pending %}
 {# Live features (presence, SSE, edits) are off in read-only mode. #}
 {% set live = clinic_ctx and not auth.read_only %}
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token(request) }}"}'
@@ -39,7 +41,8 @@
       </div>
       {% if auth %}
       <nav class="nav" aria-label="Navigation">
-        {% if not clinic_ctx and auth.is_superadmin %}
+        {% if terms_pending %}
+        {% elif not clinic_ctx and auth.is_superadmin %}
           <a href="/admin/clinics" class="{{ 'active' if path.startswith('/admin/clinic') }}">Groupes</a>
           <a href="/admin/users" class="{{ 'active' if path.startswith('/admin/users') }}">Utilisateurs</a>
           <a href="/admin/generations" class="{{ 'active' if path == '/admin/generations' }}">Générations</a>
@@ -54,7 +57,7 @@
           <a href="/generer" class="{{ 'active' if path == '/generer' }}">Générer</a>
           <a href="/resultats" class="{{ 'active' if path == '/resultats' }}">Résultats</a>
         {% endif %}
-        <a href="/parametres">Paramètres</a>
+        {% if not terms_pending %}<a href="/parametres">Paramètres</a>{% endif %}
         <form method="post" action="/logout" class="inline">
           {{ csrf_input(request) }}
           <button type="submit" class="link">Déconnexion</button>

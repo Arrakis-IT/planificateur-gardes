@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Conditions d'utilisation{% endblock %}
+{% block content %}
+<section class="panel narrow">
+  <h1>Conditions d'utilisation</h1>
+  <p>
+    Avant de continuer, merci de prendre connaissance des
+    <a href="/cgu" target="_blank" rel="noopener">conditions générales d'utilisation</a> et de la
+    <a href="/politique-confidentialite" target="_blank" rel="noopener">politique de confidentialité</a>
+    du service, puis de les accepter.
+  </p>
+  {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
+  <form method="post" action="/acceptation-cgu" class="stack">
+    {{ csrf_input(request) }}
+    {% include "partials/_terms_checkbox.html" %}
+    <button type="submit" class="primary">Continuer</button>
+  </form>
+  <form method="post" action="/logout" class="stack terms-logout">
+    {{ csrf_input(request) }}
+    <button type="submit" class="link">Se déconnecter sans accepter</button>
+  </form>
+</section>
+{% endblock %}

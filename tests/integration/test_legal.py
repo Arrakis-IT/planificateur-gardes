@@ -71,7 +71,7 @@ async def test_reset_form_has_no_terms_checkbox(client, db, mailer, make_clinic,
     """Only the first password (invitation) asks for the terms; a reset does not."""
     from tests.conftest import post_form
 
-    user = await make_user("doc@ex.lu", clinic=await make_clinic())
+    user = await make_user("doc@ex.lu", clinic=await make_clinic(), accepted_terms=False)
     await post_form(client, "/reset", {"email": "doc@ex.lu"})
     link = mailer.last_link()
     assert 'name="accept_terms"' not in (await client.get(link)).text

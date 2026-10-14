@@ -5,15 +5,17 @@
 for the group admin, month locks."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
-from app.dependencies import AppSettings, AuthContext, CurrentAuth, DbSession
-from app.routers.auth import set_session_cookie
-from app.schemas.forms import ChangePasswordForm, MonthLockForm, ProfileForm
+from app.dependencies import TERMS_ACCEPTANCE_PATH, AppSettings, AuthContext, CurrentAuth, DbSession
+from app.routers.auth import TERMS_REQUIRED, set_session_cookie
+from app.schemas.forms import ChangePasswordForm, MonthLockForm, ProfileForm, TermsForm
+from app.services import audit
 from app.services import calendar as cal
 from app.services.auth import create_session, set_password
 from app.services.locks import LockError, apply_lock_form, can_manage_locks, lock_rows
@@ -146,3 +148,37 @@ async def change_password(
     set_session_cookie(response, cookie, settings)
     set_flash(response, "Votre mot de passe a été modifié.")
     return response
+
+
+# --- Terms acceptance (users created before 0.6.0) ---------------------------------------
+
+
+@router.get(TERMS_ACCEPTANCE_PATH)
+async def terms_page(request: Request, auth: CurrentAuth) -> Response:
+    """Blocking page: accept the CGU and privacy policy before using the service."""
+    if auth.real_user.accepted_terms_at is not None:
+        return RedirectResponse("/", status_code=303)
+    return render(request, "auth/accept_terms.html")
+
+
+@router.post(TERMS_ACCEPTANCE_PATH)
+async def accept_terms(
+    request: Request, form: Annotated[TermsForm, Form()], auth: CurrentAuth, db: DbSession
+) -> Response:
+    """Record the (retroactive) acceptance; refused without the checkbox."""
+    user = auth.real_user
+    if user.accepted_terms_at is None:
+        if not form.accept_terms:
+            return render(request, "auth/accept_terms.html", {"error": TERMS_REQUIRED}, 400)
+        user.accepted_terms_at = datetime.now(UTC)
+        audit.record(
+            db,
+            "terms_accepted_retroactive",
+            request=request,
+            user_id=user.id,
+            clinic_id=user.clinic_id,
+            target_type="user",
+            target_id=user.id,
+        )
+        await db.commit()
+    return RedirectResponse("/", status_code=303)

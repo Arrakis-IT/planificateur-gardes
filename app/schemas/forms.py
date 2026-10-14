@@ -50,6 +50,12 @@ class NewPasswordForm(_Form):
     password_confirm: Password
 
 
+class TermsForm(_Form):
+    """POST /acceptation-cgu (users created before the terms checkbox existed)."""
+
+    accept_terms: bool = False
+
+
 class InvitationForm(NewPasswordForm):
     """POST /invitation/{token}: first password + mandatory acceptance of the terms."""
 

@@ -33,6 +33,10 @@ AppSettings = Annotated[Settings, Depends(get_settings)]
 # Account settings page (password change). While `must_change_password` is set, only these
 # paths are reachable.
 ACCOUNT_SETTINGS_PATH = "/parametres"
+# Users created before 0.6.0 never ticked the terms checkbox of the invitation form: until
+# they accept on this page, it is the only one (besides logout) they can reach.
+TERMS_ACCEPTANCE_PATH = "/acceptation-cgu"
+TERMS_ALLOWED_PATHS = frozenset({TERMS_ACCEPTANCE_PATH, "/logout"})
 FORCED_CHANGE_ALLOWED_PATHS = frozenset(
     {ACCOUNT_SETTINGS_PATH, f"{ACCOUNT_SETTINGS_PATH}/mot-de-passe", "/logout"}
 )
@@ -126,12 +130,15 @@ def safe_next_path(value: str | None) -> str:
 
 
 def require_user(request: Request, auth: OptionalAuth) -> AuthContext:
-    """Authenticated user; anonymous → login page, forced password change → settings."""
+    """Authenticated user; anonymous → login page, terms not accepted yet → acceptance page,
+    forced password change → settings."""
     if auth is None:
         target = request.url.path
         if request.url.query:
             target += f"?{request.url.query}"
         raise RedirectError(f"/login?next={quote(target)}")
+    if auth.real_user.accepted_terms_at is None and request.url.path not in TERMS_ALLOWED_PATHS:
+        raise RedirectError(TERMS_ACCEPTANCE_PATH)
     if auth.real_user.must_change_password and request.url.path not in FORCED_CHANGE_ALLOWED_PATHS:
         raise RedirectError(ACCOUNT_SETTINGS_PATH)
     return auth
