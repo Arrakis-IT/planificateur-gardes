@@ -54,7 +54,7 @@ def build_schedule_email(
     }
     return OutgoingEmail(
         to=recipient.email,
-        subject=(f"Planification des gardes — {clinic.name} — {period_from} au {period_to}"),
+        subject=f"Gardes {clinic.name} du {period_from} au {period_to}",
         text=render_email("schedule.txt", context),
         html=render_email("schedule.html", context),
         attachments=(Attachment(pdf_filename(clinic, generation), pdf),),

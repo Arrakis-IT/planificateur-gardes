@@ -44,9 +44,7 @@ async def test_generation_emails_pdf_to_every_active_user(client, db, mailer, te
 
     assert sorted(m.to for m in mailer.sent) == ["dt@ex.lu", "nr@ex.lu"]  # inactive excluded
     message = mailer.sent[0]
-    assert message.subject == (
-        "Planification des gardes — Cabinet du Parc — 01/04/2027 au 31/05/2027"
-    )
+    assert message.subject == ("Gardes Cabinet du Parc du 01/04/2027 au 31/05/2027")
     assert "Nicolas Rousseau vient de générer la planification des gardes" in message.text
     assert "du 01/04/2027 au 31/05/2027" in message.text
     assert "http://testserver" in message.text and "Arrakis IT Services" in message.text
