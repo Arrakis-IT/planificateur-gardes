@@ -20,6 +20,7 @@ from app.middleware.csrf import CSRF_FORM_FIELD, csrf_token_for
 from app.services import calendar as cal
 from app.services.security import derive_key
 from app.services.turnstile import FORM_FIELD as TURNSTILE_FIELD
+from app.static_assets import static_url
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 FLASH_COOKIE_NAME = "flash"
@@ -51,6 +52,8 @@ templates.env.globals["csrf_token"] = csrf_token_for
 templates.env.globals["turnstile_field"] = TURNSTILE_FIELD
 templates.env.globals["WEEKDAYS_SHORT_FR"] = cal.WEEKDAYS_SHORT_FR
 templates.env.globals["month_weeks"] = cal.month_weeks
+# Versioned static URLs (cache busting through Cloudflare / browser / service worker).
+templates.env.globals["static_url"] = static_url
 templates.env.filters["long_date"] = cal.long_date
 templates.env.filters["short_date"] = cal.short_date
 templates.env.filters["local_datetime"] = cal.local_datetime

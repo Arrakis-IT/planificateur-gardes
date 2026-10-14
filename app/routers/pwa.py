@@ -6,77 +6,56 @@
 The service worker never caches pages or data: the planning and its shared draft must
 always come from the server. It only serves the static shell (CSS, JS, HTMX, fonts,
 icons) from cache. The cache name carries a hash of those files, so every deployment
-that changes one of them installs a new worker and drops the old cache.
+that changes one of them installs a new worker and drops the old cache. Precached URLs
+are versioned like the ones in the pages (see app/static_assets.py).
+
+PRECACHE and static_version are re-exported from app.static_assets.
 """
 
-import hashlib
 import json
-from functools import lru_cache
-from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter
 from starlette.responses import Response
 
+from app.static_assets import PRECACHE, static_url, static_version
+
 router = APIRouter(tags=["pwa"])
-
-STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
-
-# Files (relative to /static) precached by the service worker.
-PRECACHE = (
-    "css/app.css",
-    "js/app.js",
-    "js/htmx.min.js",
-    "fonts/inter-latin.woff2",
-    "fonts/fraunces-latin.woff2",
-    "fonts/jetbrains-mono-latin.woff2",
-    "icons/icon.svg",
-    "icons/icon-192.png",
-    "icons/icon-512.png",
-    "icons/icon-maskable-512.png",
-    "icons/apple-touch-icon.png",
-    "icons/favicon-32.png",
-)
 
 PNG = "image/png"
 
-MANIFEST = {
-    "name": "Planificateur des gardes",
-    "short_name": "Gardes",
-    "description": "Planification des gardes médicales du groupe.",
-    "lang": "fr",
-    "start_url": "/?source=pwa",
-    "scope": "/",
-    "display": "standalone",
-    "orientation": "portrait",
-    "background_color": "#f6f5f1",
-    "theme_color": "#2d4a3e",
-    "icons": [
-        {"src": "/static/icons/icon-192.png", "sizes": "192x192", "type": PNG},
-        {"src": "/static/icons/icon-512.png", "sizes": "512x512", "type": PNG},
-        {
-            "src": "/static/icons/icon-maskable-512.png",
-            "sizes": "512x512",
-            "type": PNG,
-            "purpose": "maskable",
-        },
-        {"src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml"},
-    ],
-}
 
-
-@lru_cache
-def static_version() -> str:
-    """Short hash of the precached files' content (changes on every asset change)."""
-    digest = hashlib.sha256()
-    for name in PRECACHE:
-        digest.update(name.encode())
-        digest.update((STATIC_DIR / name).read_bytes())
-    return digest.hexdigest()[:12]
+def _manifest() -> dict[str, Any]:
+    return {
+        "name": "Planificateur des gardes",
+        "short_name": "Gardes",
+        "description": "Planification des gardes médicales du groupe.",
+        "lang": "fr",
+        "start_url": "/?source=pwa",
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#f6f5f1",
+        "theme_color": "#2d4a3e",
+        "icons": [
+            {"src": static_url("icons/icon-192.png"), "sizes": "192x192", "type": PNG},
+            {"src": static_url("icons/icon-512.png"), "sizes": "512x512", "type": PNG},
+            {
+                "src": static_url("icons/icon-maskable-512.png"),
+                "sizes": "512x512",
+                "type": PNG,
+                "purpose": "maskable",
+            },
+            {"src": static_url("icons/icon.svg"), "sizes": "any", "type": "image/svg+xml"},
+        ],
+    }
 
 
 SERVICE_WORKER = """// Planificateur des gardes service worker: static assets only, no offline data.
 const CACHE = "gardes-static-%(version)s";
+// Versioned URLs ("?v=<version>"), as emitted by the pages.
 const PRECACHE = %(precache)s;
+const VERSIONED = new Map(PRECACHE.map((u) => [new URL(u, self.location.origin).pathname, u]));
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
@@ -99,9 +78,13 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin || !PRECACHE.includes(url.pathname)) return;
+  if (url.origin !== self.location.origin || !VERSIONED.has(url.pathname)) return;
+  // Exact match: a page of a newer deployment asks for a new "?v=" that this worker's
+  // cache does not hold, so it goes to the network. Unversioned requests (fonts referenced
+  // from the CSS) use this worker's own copy.
+  const key = url.search ? request : VERSIONED.get(url.pathname);
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request))
+    caches.match(key).then((cached) => cached || fetch(request))
   );
 });
 """
@@ -111,7 +94,7 @@ self.addEventListener("fetch", (event) => {
 async def manifest() -> Response:
     """Web app manifest (makes "Add to home screen" available)."""
     return Response(
-        json.dumps(MANIFEST, ensure_ascii=False),
+        json.dumps(_manifest(), ensure_ascii=False),
         media_type="application/manifest+json",
         headers={"Cache-Control": "public, max-age=3600"},
     )
@@ -122,7 +105,7 @@ async def service_worker() -> Response:
     """Service worker, served from the root so its scope is the whole app."""
     body = SERVICE_WORKER % {
         "version": static_version(),
-        "precache": json.dumps([f"/static/{name}" for name in PRECACHE], indent=2),
+        "precache": json.dumps([static_url(name) for name in PRECACHE], indent=2),
     }
     return Response(
         body,

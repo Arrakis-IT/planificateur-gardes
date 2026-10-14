@@ -8,7 +8,7 @@ import re
 
 import pytest
 
-from app.routers.pwa import PRECACHE, static_version
+from app.static_assets import PRECACHE, static_url, static_version
 from tests.conftest import login
 
 FONTS = {
@@ -55,9 +55,11 @@ async def test_head_requests_supported(client):
 async def test_service_worker_precaches_fonts_and_htmx(client):
     body = (await client.get("/sw.js")).text
     precache = set(json.loads(re.search(r"const PRECACHE = (\[.*?\]);", body, re.S).group(1)))
-    assert precache >= FONTS
-    assert "/static/js/htmx.min.js" in precache
-    assert {"/static/css/app.css", "/static/js/app.js", "/static/icons/favicon-32.png"} <= precache
+    assert all(url.endswith(f"?v={static_version()}") for url in precache)  # versioned
+    paths = {url.split("?")[0] for url in precache}
+    assert paths >= FONTS
+    assert "/static/js/htmx.min.js" in paths
+    assert {"/static/css/app.css", "/static/js/app.js", "/static/icons/favicon-32.png"} <= paths
     # Every precached file exists (a missing one would make the SW install fail).
     for url in precache:
         assert (await client.get(url)).status_code == 200, url
@@ -66,7 +68,7 @@ async def test_service_worker_precaches_fonts_and_htmx(client):
 async def test_service_worker_never_caches_pages_or_data(client):
     body = (await client.get("/sw.js")).text
     assert 'request.method !== "GET"' in body
-    assert "PRECACHE.includes(url.pathname)" in body  # only precached static files
+    assert "!VERSIONED.has(url.pathname)) return" in body  # only precached static files
     assert "/sse/" not in body and "/resultats" not in body
 
 
@@ -107,3 +109,27 @@ async def test_no_tabbar_for_superadmin_or_anonymous(client, db, make_user):
     await make_user("admin@ex.lu", "Juan Admin", is_superadmin=True)
     await login(client, "admin@ex.lu")
     assert 'class="tabbar"' not in (await client.get("/admin/clinics")).text
+
+
+async def test_pages_use_versioned_static_urls(client):
+    """Cache busting: a deployment that changes a static file changes its URL, so the
+    Cloudflare edge / browser / service worker cannot keep serving the old copy (this kept
+    the 0.7.0 toast code out of production)."""
+    page = (await client.get("/login")).text
+    for name in ("css/app.css", "js/app.js", "js/htmx.min.js", "icons/favicon-32.png"):
+        assert f'"{static_url(name)}"' in page, name
+    assert '/static/js/app.js"' not in page and '/static/css/app.css"' not in page
+    manifest = (await client.get("/manifest.webmanifest")).json()
+    assert all("?v=" in icon["src"] for icon in manifest["icons"])
+
+
+async def test_page_loads_the_toast_component(client):
+    """The page ships the toast container and the script that turns HX-Trigger "toast"
+    events into toasts (the versioned URL in the page serves the current file)."""
+    page = (await client.get("/login")).text
+    assert '<div id="toasts" class="toasts">' in page
+    script = await client.get(static_url("js/app.js"))
+    assert script.status_code == 200
+    assert 'addEventListener("toast"' in script.text and "function showToast" in script.text
+    css = (await client.get(static_url("css/app.css"))).text
+    assert ".toasts {" in css and "@keyframes toast-out" in css
