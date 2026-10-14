@@ -13,7 +13,8 @@
       <td>{% if row.locked %}<span class="badge lock-badge">🔒 Verrouillé</span>{% endif %}</td>
       <td class="actions">
         {% if row.locked or row.lockable %}
-        <form method="post" action="{{ lock_action }}" class="inline">
+        <form method="post" action="{{ lock_action }}" class="inline"
+              hx-post="{{ lock_action }}" hx-target="#month-locks" hx-swap="outerHTML">
           {{ csrf_input(request) }}
           <input type="hidden" name="month" value="{{ row.key }}">
           {% if row.locked %}

@@ -109,6 +109,19 @@ def _flash_serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(key, salt="flash")
 
 
+def is_htmx(request: Request) -> bool:
+    """Request sent by HTMX (expects a fragment)."""
+    return request.headers.get("hx-request") == "true"
+
+
+def trigger_toast(response: Response, message: str, level: str = "success") -> None:
+    """Show a toast on an HTMX response (HX-Trigger "toast" event, see static/js/app.js).
+
+    JSON is ASCII-escaped: header values must stay latin-1.
+    """
+    response.headers["HX-Trigger"] = json.dumps({"toast": {"message": message, "level": level}})
+
+
 def set_flash(response: Response, message: str, level: str = "success") -> None:
     """Attach a one-shot message displayed on the next rendered page."""
     settings = get_settings()

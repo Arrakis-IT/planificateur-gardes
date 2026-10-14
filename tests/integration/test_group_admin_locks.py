@@ -118,7 +118,7 @@ async def test_role_only_for_active_users_of_the_clinic(app, db, team, make_clin
                 root, f"/admin/clinic/{clinic.id}/group-admin", {"user_id": str(user.id)}
             )
             assert response.status_code == 303
-            assert "alert-error" in (await root.get(response.headers["location"])).text
+            assert "toast toast-error" in (await root.get(response.headers["location"])).text
     await db.refresh(admin)
     assert admin.is_group_admin
 

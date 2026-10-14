@@ -63,9 +63,6 @@
       {% endif %}
     </header>
 
-    {% if flash %}
-      <output class="alert alert-{{ flash.level }}">{{ flash.message }}</output>
-    {% endif %}
 
     <main>
       {% block content %}{% endblock %}
@@ -81,6 +78,11 @@
     </footer>
   </div>
   <div id="modal"></div>
+  {# Toasts: fixed top-right, dismissed by a CSS animation (also without JS), stacked.
+     Flash messages render here; HTMX responses add more through the "toast" event. #}
+  <div id="toasts" class="toasts">
+    {% if flash %}<output class="toast toast-{{ flash.level }}" role="{{ 'alert' if flash.level == 'error' else 'status' }}">{{ flash.message }}</output>{% endif %}
+  </div>
   {% if clinic_ctx %}{% include "partials/_tabbar.html" %}{% endif %}
 </body>
 </html>

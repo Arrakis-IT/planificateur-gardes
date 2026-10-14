@@ -29,7 +29,7 @@ from app.services.holidays import lu_public_holidays
 from app.services.locks import LockError, apply_lock_form, lock_rows
 from app.services.presence import hub
 from app.services.security import verify_password
-from app.templating import render, set_flash
+from app.templating import is_htmx, render, set_flash, trigger_toast
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_superadmin)])
 
@@ -179,9 +179,31 @@ async def clinic_month_lock(
             request=request,
         )
     except LockError as exc:
+        if is_htmx(request):
+            fragment = await _locks_fragment(request, db, clinic, {"lock_error": str(exc)}, 400)
+            trigger_toast(fragment, str(exc), "error")
+            return fragment
         return await _clinic_page(request, db, clinic, {"lock_error": str(exc)}, 400)
     await db.commit()
+    if is_htmx(request):  # swap the list in place: no reload, no scroll jump
+        fragment = await _locks_fragment(request, db, clinic)
+        trigger_toast(fragment, message)
+        return fragment
     return _redirect(page, message)
+
+
+async def _locks_fragment(
+    request: Request,
+    db: DbSession,
+    clinic: Clinic,
+    extra: dict[str, Any] | None = None,
+    status_code: int = 200,
+) -> Response:
+    context = {
+        "lock_rows": await lock_rows(db, clinic.id, cal.today_local()),
+        "lock_action": f"/admin/clinic/{clinic.id}/verrous",
+    }
+    return render(request, "partials/_month_locks.html", context | (extra or {}), status_code)
 
 
 @router.post("/clinic/{clinic_id}/view")

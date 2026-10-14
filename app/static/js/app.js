@@ -50,6 +50,31 @@
   });
   document.body.addEventListener("closeModal", closeModal); // HX-Trigger from the server
 
+  // --- Toasts -------------------------------------------------------------------------
+  // Server-rendered (flash) or sent as an HX-Trigger "toast" event {message, level}. CSS fades
+  // them out; they are removed once the fade-out animation ends.
+  function removeWhenFaded(toast) {
+    toast.addEventListener("animationend", function (event) {
+      if (event.animationName === "toast-out") toast.remove();
+    });
+  }
+  document.querySelectorAll("#toasts .toast").forEach(removeWhenFaded);
+  function showToast(message, level) {
+    var container = document.getElementById("toasts");
+    if (!container || !message) return;
+    var toast = document.createElement("output");
+    level = level === "error" || level === "warn" ? level : "success";
+    toast.className = "toast toast-" + level;
+    toast.setAttribute("role", level === "error" ? "alert" : "status");
+    toast.textContent = message;
+    removeWhenFaded(toast);
+    container.appendChild(toast);
+  }
+  document.body.addEventListener("toast", function (event) {
+    var detail = event.detail || {};
+    showToast(detail.message, detail.level);
+  });
+
   // --- Planning refresh ---------------------------------------------------------------
   var refreshPending = false;
   function refreshPlanning() {

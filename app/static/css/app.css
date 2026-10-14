@@ -185,6 +185,26 @@ output.alert { display: block; }
 .alert-error { background: var(--err-soft); border-color: var(--err); color: var(--err); }
 .alert-warn { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
 
+/* Toasts (flash messages, HTMX "toast" events): fixed, so showing or hiding one never moves
+   the page; the fade-out is pure CSS (works without JS), app.js removes them afterwards. */
+.toasts {
+  position: fixed; top: 16px; right: 16px; z-index: 1100;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  max-width: min(420px, calc(100vw - 32px)); pointer-events: none;
+}
+.toast {
+  display: block; padding: 10px 14px; border-radius: 4px; border: 1px solid;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-size: 14px; pointer-events: auto;
+  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+  animation: toast-in 0.2s ease-out, toast-out 0.3s ease-in 3.5s forwards;
+}
+.toast-error { background: var(--err-soft); border-color: var(--err); color: var(--err); }
+.toast-warn { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+/* Problems stay a little longer. */
+.toast-error, .toast-warn { animation: toast-in 0.2s ease-out, toast-out 0.3s ease-in 6s forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; visibility: hidden; } }
+
 .table { width: 100%; border-collapse: collapse; margin-top: 16px; }
 .table th, .table td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); font-weight: 600; }
@@ -436,6 +456,9 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
+  /* Toasts must still go away: no movement, just disappear after the delay. */
+  .toast { animation: toast-out 0.01s linear 3.5s forwards !important; }
+  .toast-error, .toast-warn { animation: toast-out 0.01s linear 6s forwards !important; }
 }
 .pager a {
   text-decoration: none;
@@ -453,6 +476,7 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
 /* --- Mobile (≤ 768 px) ------------------------------------------------------------ */
 @media (max-width: 768px) {
+  .toasts { top: calc(8px + env(safe-area-inset-top)); left: 12px; right: 12px; max-width: none; align-items: stretch; }
   .app { padding: 12px; }
   body.has-tabbar { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
   body.has-tabbar .topbar .nav { display: none; }  /* replaced by the tab bar */

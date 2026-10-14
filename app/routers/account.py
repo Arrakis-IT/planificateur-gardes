@@ -19,7 +19,7 @@ from app.services.auth import create_session, set_password
 from app.services.locks import LockError, apply_lock_form, can_manage_locks, lock_rows
 from app.services.profile import rename_user
 from app.services.security import validate_new_password, verify_password
-from app.templating import render, set_flash
+from app.templating import is_htmx, render, set_flash, trigger_toast
 
 router = APIRouter(tags=["account"])
 
@@ -33,6 +33,7 @@ PROFILE_IMPERSONATION_FORBIDDEN = (
 
 LOCKS_FORBIDDEN = "Réservé à l'administrateur du groupe."
 SETTINGS_PAGE = "/parametres"
+LOCKS_FRAGMENT = "partials/_month_locks.html"
 
 
 def _locks_clinic(auth: AuthContext) -> uuid.UUID | None:
@@ -83,8 +84,16 @@ async def month_lock(
         )
     except LockError as exc:
         context = await _settings_context(auth, db) | {"lock_error": str(exc)}
+        if is_htmx(request):
+            fragment = render(request, LOCKS_FRAGMENT, context, 400)
+            trigger_toast(fragment, str(exc), "error")
+            return fragment
         return render(request, "account/settings.html", context, 400)
     await db.commit()
+    if is_htmx(request):  # swap the list in place: no reload, no scroll jump
+        fragment = render(request, LOCKS_FRAGMENT, await _settings_context(auth, db))
+        trigger_toast(fragment, message)
+        return fragment
     set_flash(response, message)
     return response
 
