@@ -4,18 +4,18 @@
 <section class="panel">
   <h1>Statistiques</h1>
   <div class="kpis">
-    <div class="kpi"><div class="kpi-value">{{ s.clinics_active }}</div><div class="kpi-label">cabinets actifs</div><div class="kpi-sub">{{ s.clinics_inactive }} inactif{{ 's' if s.clinics_inactive != 1 }}</div></div>
+    <div class="kpi"><div class="kpi-value">{{ s.clinics_active }}</div><div class="kpi-label">groupes actifs</div><div class="kpi-sub">{{ s.clinics_inactive }} inactif{{ 's' if s.clinics_inactive != 1 }}</div></div>
     <div class="kpi"><div class="kpi-value">{{ s.users_active }}</div><div class="kpi-label">médecins actifs</div><div class="kpi-sub">{{ s.users_inactive }} inactif{{ 's' if s.users_inactive != 1 }} · {{ s.superadmins }} superadmin{{ 's' if s.superadmins != 1 }}</div></div>
-    <div class="kpi"><div class="kpi-value">{{ s.generations_by_clinic|sum(attribute=1) }}</div><div class="kpi-label">générations (30 j)</div><div class="kpi-sub">{{ s.generations_by_clinic|length }} cabinet{{ 's' if s.generations_by_clinic|length != 1 }}</div></div>
+    <div class="kpi"><div class="kpi-value">{{ s.generations_by_clinic|sum(attribute=1) }}</div><div class="kpi-label">générations (30 j)</div><div class="kpi-sub">{{ s.generations_by_clinic|length }} groupe{{ 's' if s.generations_by_clinic|length != 1 }}</div></div>
     <div class="kpi"><div class="kpi-value">{{ s.emails_sent }}</div><div class="kpi-label">e-mails envoyés (30 j)</div><div class="kpi-sub {{ 'err' if s.emails_failed }}">{{ s.emails_failed }} échec{{ 's' if s.emails_failed != 1 }}</div></div>
   </div>
 </section>
 
 <div class="admin-grid">
 <section class="panel">
-  <h2>Générations par cabinet (30 jours)</h2>
+  <h2>Générations par groupe (30 jours)</h2>
   <table class="table">
-    <thead><tr><th>Cabinet</th><th class="num">Générations</th></tr></thead>
+    <thead><tr><th>Groupe</th><th class="num">Générations</th></tr></thead>
     <tbody>
     {% for clinic, n in s.generations_by_clinic %}
       <tr><td><a href="/admin/clinic/{{ clinic.id }}/generations">{{ clinic.name }}</a></td><td class="num">{{ n }}</td></tr>

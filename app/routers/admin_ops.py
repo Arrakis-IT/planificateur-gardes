@@ -42,7 +42,7 @@ def _redirect(url: str, message: str | None = None, level: str = "success") -> R
 async def _clinic_or_404(db: DbSession, clinic_id: uuid.UUID) -> Clinic:
     clinic = await clinics_repo.get_clinic(db, clinic_id)
     if clinic is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cabinet introuvable.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Groupe introuvable.")
     return clinic
 
 
@@ -60,7 +60,7 @@ async def impersonate(
     if target.is_superadmin or not is_user_allowed(target):
         return _redirect(
             "/admin/users",
-            "Seul un médecin actif d'un cabinet actif peut être utilisé pour l'impersonation.",
+            "Seul un médecin actif d'un groupe actif peut être utilisé pour l'impersonation.",
             "error",
         )
     auth.session.impersonating_user_id = target.id
@@ -313,7 +313,7 @@ async def generation_archive(
     )
     await db.commit()
     hub.publish(generation.clinic_id, "draft_cleared", {"reason": "archived", "changed": 0})
-    return _redirect(target, "Génération archivée : le cabinet n'a plus de planification active.")
+    return _redirect(target, "Génération archivée : le groupe n'a plus de planification active.")
 
 
 @router.post("/generations/{generation_id}/delete")

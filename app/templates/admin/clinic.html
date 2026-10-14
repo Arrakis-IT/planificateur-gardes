@@ -9,7 +9,7 @@
         {{ csrf_input(request) }}
         <button type="submit" class="primary">Ouvrir en lecture seule</button>
       </form>
-      <a class="button" href="/admin/clinic/{{ clinic.id }}/holidays">Jours fériés du cabinet</a>
+      <a class="button" href="/admin/clinic/{{ clinic.id }}/holidays">Jours fériés du groupe</a>
       <a class="button" href="/admin/clinic/{{ clinic.id }}/generations">Générations</a>
       <a class="button" href="/admin/audit?clinic={{ clinic.id }}">Journal</a>
     </div>
@@ -18,7 +18,7 @@
     Identifiant <span class="mono">{{ clinic.slug }}</span> ·
     {% if active %}planification active du {{ active.period_from|short_date }} au {{ active.period_to|short_date }}{% else %}aucune planification active{% endif %}
   </p>
-  <p class="muted small">« Lecture seule » montre les pages du cabinet sans pouvoir rien modifier. Pour modifier, connectez-vous en tant qu'un médecin.</p>
+  <p class="muted small">« Lecture seule » montre les pages du groupe sans pouvoir rien modifier. Pour modifier, connectez-vous en tant qu'un médecin.</p>
 
   <h2>Médecins</h2>
   <table class="table">

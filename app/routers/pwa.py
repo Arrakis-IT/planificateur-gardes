@@ -42,7 +42,7 @@ PNG = "image/png"
 MANIFEST = {
     "name": "Planificateur des gardes",
     "short_name": "Gardes",
-    "description": "Planification des gardes médicales du cabinet.",
+    "description": "Planification des gardes médicales du groupe.",
     "lang": "fr",
     "start_url": "/?source=pwa",
     "scope": "/",

@@ -5,9 +5,9 @@
   <div class="panel-header">
     <h1>Générations{% if clinic %} — <a href="/admin/clinic/{{ clinic.id }}">{{ clinic.name }}</a>{% endif %}</h1>
   </div>
-  {% if not clinic %}<p class="muted">Les 100 dernières générations, tous cabinets confondus.</p>{% endif %}
+  {% if not clinic %}<p class="muted">Les 100 dernières générations, tous groupes confondus.</p>{% endif %}
   <table class="table">
-    <thead><tr><th>Cabinet</th><th>Période</th><th>Générée par</th><th>Le</th><th>Statut</th>{% if clinic %}<th class="actions">Actions</th>{% endif %}</tr></thead>
+    <thead><tr><th>Groupe</th><th>Période</th><th>Générée par</th><th>Le</th><th>Statut</th>{% if clinic %}<th class="actions">Actions</th>{% endif %}</tr></thead>
     <tbody>
     {% for g, c, u in rows %}
       <tr class="{{ '' if g.is_active else 'inactive' }}">

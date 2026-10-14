@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Cabinets{% endblock %}
+{% block title %}Groupes{% endblock %}
 {% block content %}
 <section class="panel">
   <div class="panel-header">
-    <h1>Cabinets</h1>
+    <h1>Groupes</h1>
   </div>
 
   <form method="post" action="/admin/clinics" class="row">
     {{ csrf_input(request) }}
     <div class="grow">
-      <label for="name">Nouveau cabinet</label>
-      <input type="text" id="name" name="name" maxlength="200" placeholder="Nom du cabinet" required>
+      <label for="name">Nouveau groupe</label>
+      <input type="text" id="name" name="name" maxlength="200" placeholder="Nom du groupe" required>
     </div>
     <button type="submit" class="primary">Créer</button>
   </form>
@@ -49,7 +49,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="5" class="muted">Aucun cabinet.</td></tr>
+      <tr><td colspan="5" class="muted">Aucun groupe.</td></tr>
     {% endfor %}
     </tbody>
   </table>

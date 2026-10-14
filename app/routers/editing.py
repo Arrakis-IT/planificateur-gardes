@@ -38,7 +38,7 @@ DEFAULT_RETURN = RESULTS_PATH
 
 router = APIRouter(prefix=RESULTS_PATH, tags=["editing"])
 NOT_IN_PLANNING = "Ce jour ne fait pas partie de la planification active."
-UNKNOWN_DOCTOR_MESSAGE = "Médecin inconnu dans ce cabinet."
+UNKNOWN_DOCTOR_MESSAGE = "Médecin inconnu dans ce groupe."
 NOT_ONSITE_MESSAGE = "Ce jour n'est pas un jour sur place."
 
 # Documented error responses (OpenAPI).

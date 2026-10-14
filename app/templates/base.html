@@ -39,7 +39,7 @@
       {% if auth %}
       <nav class="nav" aria-label="Navigation">
         {% if not clinic_ctx and auth.is_superadmin %}
-          <a href="/admin/clinics" class="{{ 'active' if path.startswith('/admin/clinic') }}">Cabinets</a>
+          <a href="/admin/clinics" class="{{ 'active' if path.startswith('/admin/clinic') }}">Groupes</a>
           <a href="/admin/users" class="{{ 'active' if path.startswith('/admin/users') }}">Utilisateurs</a>
           <a href="/admin/generations" class="{{ 'active' if path == '/admin/generations' }}">Générations</a>
           <a href="/admin/audit" class="{{ 'active' if path == '/admin/audit' }}">Journal</a>
@@ -53,6 +53,7 @@
           <a href="/generer" class="{{ 'active' if path == '/generer' }}">Générer</a>
           <a href="/resultats" class="{{ 'active' if path == '/resultats' }}">Résultats</a>
         {% endif %}
+        <span class="greeting">Bonjour {{ auth.real_user.full_name }}</span>
         <a href="/parametres">Paramètres</a>
         <form method="post" action="/logout" class="inline">
           {{ csrf_input(request) }}

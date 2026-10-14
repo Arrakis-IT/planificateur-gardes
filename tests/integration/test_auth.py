@@ -54,6 +54,14 @@ async def test_login_success_sets_hardened_cookie_and_audits(client, db, make_cl
     assert user.last_login_at is not None
 
 
+async def test_header_greets_logged_in_user_only(client, db, make_clinic, make_user):
+    clinic = await make_clinic()
+    await make_user("doc@example.lu", "Juan Manuel", clinic=clinic)
+    assert "Bonjour" not in (await client.get("/login")).text
+    await login(client, "doc@example.lu")
+    assert "Bonjour Juan Manuel" in (await client.get("/")).text
+
+
 async def test_login_follows_safe_next_only(client, db, make_clinic, make_user):
     clinic = await make_clinic()
     await make_user("doc@example.lu", clinic=clinic)

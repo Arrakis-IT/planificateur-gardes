@@ -14,9 +14,9 @@
     <h1>Utilisateurs</h1>
     <form method="get" action="/admin/users" class="row filters-inline">
       <div>
-      <label for="filter-clinic">Cabinet</label>
+      <label for="filter-clinic">Groupe</label>
       <select id="filter-clinic" name="clinic">
-        <option value="">Tous les cabinets</option>
+        <option value="">Tous les groupes</option>
         <option value="superadmins" {{ 'selected' if clinic_filter == 'superadmins' }}>Superadministrateurs</option>
         {% for c in clinics %}
           <option value="{{ c.id }}" {{ 'selected' if clinic_filter == c.id|string }}>{{ c.name }}</option>
@@ -37,7 +37,7 @@
 
   <table class="table">
     <thead>
-      <tr><th>Code</th><th>Nom</th><th>E-mail</th><th>Cabinet</th><th>Dernière connexion</th><th>Statut</th><th class="actions">Actions</th></tr>
+      <tr><th>Code</th><th>Nom</th><th>E-mail</th><th>Groupe</th><th>Dernière connexion</th><th>Statut</th><th class="actions">Actions</th></tr>
     </thead>
     <tbody>
     {% for u in users %}
@@ -97,7 +97,7 @@
       <input type="text" id="password" name="password" minlength="12" autocomplete="off" required>
     </div>
     <div>
-      <label for="clinic_id">Cabinet</label>
+      <label for="clinic_id">Groupe</label>
       <select id="clinic_id" name="clinic_id">
         <option value="">— Aucun (superadministrateur) —</option>
         {% for c in clinics if c.active %}

@@ -156,7 +156,7 @@ def require_clinic_user(request: Request, auth: CurrentAuth) -> AuthContext:
         if request.method not in READ_METHODS:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                "Mode lecture : pour modifier, connectez-vous en tant qu'un médecin du cabinet.",
+                "Mode lecture : pour modifier, connectez-vous en tant qu'un médecin du groupe.",
             )
         return auth
     if auth.user.is_superadmin:

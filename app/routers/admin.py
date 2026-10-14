@@ -39,7 +39,7 @@ def _redirect(url: str, message: str | None = None, level: str = "success") -> R
 async def _get_clinic_or_404(db: DbSession, clinic_id: uuid.UUID) -> Clinic:
     clinic = await clinics_repo.get_clinic(db, clinic_id)
     if clinic is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cabinet introuvable.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Groupe introuvable.")
     return clinic
 
 
@@ -89,7 +89,7 @@ async def clinic_create(
         meta={"name": clinic.name, "slug": clinic.slug},
     )
     await db.commit()
-    return _redirect(CLINICS_PAGE, f"Cabinet « {clinic.name} » créé.")
+    return _redirect(CLINICS_PAGE, f"Groupe « {clinic.name} » créé.")
 
 
 @router.post("/clinics/{clinic_id}/rename")
@@ -115,7 +115,7 @@ async def clinic_rename(
         meta={"old": old_name, "new": form.name},
     )
     await db.commit()
-    return _redirect(CLINICS_PAGE, "Cabinet renommé.")
+    return _redirect(CLINICS_PAGE, "Groupe renommé.")
 
 
 @router.post("/clinics/{clinic_id}/toggle-active")
@@ -135,7 +135,7 @@ async def clinic_toggle_active(
         target_id=clinic.id,
     )
     await db.commit()
-    return _redirect(CLINICS_PAGE, "Cabinet réactivé." if clinic.active else "Cabinet désactivé.")
+    return _redirect(CLINICS_PAGE, "Groupe réactivé." if clinic.active else "Groupe désactivé.")
 
 
 @router.post("/clinics/{clinic_id}/delete")
@@ -147,7 +147,7 @@ async def clinic_delete(
     if await clinics_repo.count_clinic_users(db, clinic.id):
         return _redirect(
             CLINICS_PAGE,
-            "Impossible de supprimer un cabinet qui a encore des utilisateurs.",
+            "Impossible de supprimer un groupe qui a encore des utilisateurs.",
             "error",
         )
     audit.record(
@@ -162,7 +162,7 @@ async def clinic_delete(
     )
     await db.delete(clinic)
     await db.commit()
-    return _redirect(CLINICS_PAGE, f"Cabinet « {clinic.name} » supprimé.")
+    return _redirect(CLINICS_PAGE, f"Groupe « {clinic.name} » supprimé.")
 
 
 # --- Users --------------------------------------------------------------------------------
@@ -230,14 +230,14 @@ async def user_create(
     clinic_id: uuid.UUID | None = None
     if form.is_superadmin:
         if form.clinic_id:
-            return await fail("Un superadministrateur ne peut pas être rattaché à un cabinet.")
+            return await fail("Un superadministrateur ne peut pas être rattaché à un groupe.")
     else:
         try:
             clinic_id = uuid.UUID(form.clinic_id)
         except ValueError:
-            return await fail("Choisissez un cabinet.")
+            return await fail("Choisissez un groupe.")
         if await clinics_repo.get_clinic(db, clinic_id) is None:
-            return await fail("Cabinet introuvable.")
+            return await fail("Groupe introuvable.")
 
     pw_error = validate_new_password(form.password, form.password, form.email)
     if pw_error:

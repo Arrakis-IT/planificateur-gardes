@@ -138,7 +138,7 @@ async def run_generation(
 
     doctors = await users_repo.list_clinic_users(db, clinic_id)
     if not doctors:
-        raise GenerationError("Le cabinet n'a aucun médecin actif.")
+        raise GenerationError("Le groupe n'a aucun médecin actif.")
     code_of = {u.id: u.doctor_code for u in doctors}
     vacations = {
         day: {code_of[uid] for uid in user_ids if uid in code_of}

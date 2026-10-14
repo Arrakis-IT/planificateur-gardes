@@ -82,6 +82,11 @@ h2 { font-size: 18px; color: var(--accent); margin-top: 8px; }
 .nav { display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
 .nav a { color: var(--ink-soft); text-decoration: none; }
 .nav a:hover { color: var(--accent); }
+.greeting {
+  color: var(--ink-soft); font-size: 14px; font-style: italic;
+  padding-left: 16px; border-left: 1px solid var(--line-strong);
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .panel {
   background: var(--surface);
@@ -433,6 +438,7 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
   .app { padding: 12px; }
   body.has-tabbar { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
   body.has-tabbar .topbar .nav { display: none; }  /* replaced by the tab bar */
+  .greeting { display: none; }
   .topbar { margin-bottom: 14px; padding-bottom: 10px; }
   .brand-link { font-size: 19px; }
   .subtitle { display: block; margin: 2px 0 0; font-size: 13px; }

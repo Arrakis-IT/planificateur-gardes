@@ -145,7 +145,7 @@ async def test_create_user_validation_errors(admin_client, db, make_clinic):
     base = {"email": "a@ex.lu", "full_name": "Anne Dupont", "password": "initial-password-1"}
 
     no_clinic = await post_form(admin_client, "/admin/users", base)
-    assert no_clinic.status_code == 400 and "Choisissez un cabinet" in no_clinic.text
+    assert no_clinic.status_code == 400 and "Choisissez un groupe" in no_clinic.text
 
     weak = await post_form(
         admin_client, "/admin/users", base | {"password": "short", "clinic_id": str(clinic.id)}
@@ -742,7 +742,7 @@ async def test_stats_numbers(admin_client, db, cabinet, make_clinic, make_user):
     await db.commit()
     page = await admin_client.get("/admin/stats")
     assert f'<a href="/admin/users/{nr.id}">Nicolas Rousseau</a>' in page.text
-    assert "cabinets actifs" in page.text
+    assert "groupes actifs" in page.text
 
 
 async def test_user_profile_page(admin_client, db, cabinet):

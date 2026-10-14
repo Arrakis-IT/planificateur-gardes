@@ -9,8 +9,8 @@ Each clinic manages its doctors' vacations and on-site days, generates a balance
 semester (weekends assigned as Saturday + Sunday blocks, Luxembourg public holidays handled), edits
 it collaboratively with live presence, and emails the PDF of the planning to every doctor.
 
-*Application web multi-cabinets de planification des gardes médicales au Luxembourg. Chaque
-cabinet gère les congés de ses médecins et les jours de présence sur place, génère un planning
+*Application web multi-groupes de planification des gardes médicales au Luxembourg. Chaque
+groupe gère les congés de ses médecins et les jours de présence sur place, génère un planning
 équilibré pour un semestre (week-ends attribués en bloc samedi + dimanche, jours fériés
 luxembourgeois pris en compte), le modifie à plusieurs avec indication de présence en direct et
 envoie le PDF du planning par e-mail à tous les médecins.*

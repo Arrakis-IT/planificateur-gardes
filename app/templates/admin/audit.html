@@ -12,7 +12,7 @@
       </select>
     </div>
     <div>
-      <label for="f-clinic">Cabinet</label>
+      <label for="f-clinic">Groupe</label>
       <select id="f-clinic" name="clinic">
         <option value="">Tous</option>
         {% for c in clinics.values() %}<option value="{{ c.id }}" {{ 'selected' if filters.clinic == c.id|string }}>{{ c.name }}</option>{% endfor %}
