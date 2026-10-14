@@ -7,7 +7,7 @@ Calendars are forms whose day buttons submit `date`; HTMX swaps the calendar fra
 and without JavaScript the same form falls back to POST + redirect.
 
 Both pages show WINDOW_MONTHS months starting at `debut` (YYYY-MM, default: the current
-month) and move one month at a time.
+month); Précédent / Suivant jump by a whole window.
 """
 
 import uuid
@@ -47,8 +47,8 @@ async def _calendar_context(
         "period": period,
         "debut": cal.month_key(period.start),
         "period_label": cal.period_label(period),
-        "prev_debut": cal.month_key(cal.add_months(period.start, -1)),
-        "next_debut": cal.month_key(cal.add_months(period.start, 1)),
+        "prev_debut": cal.month_key(cal.add_months(period.start, -WINDOW_MONTHS)),
+        "next_debut": cal.month_key(cal.add_months(period.start, WINDOW_MONTHS)),
         "months": cal.months_between(period.start, period.end),
         "marked": marked,
         "public_holidays": await public_holidays(db, clinic_id, period.start, period.end),

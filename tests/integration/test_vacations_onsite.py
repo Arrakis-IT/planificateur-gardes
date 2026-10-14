@@ -35,9 +35,9 @@ async def test_vacation_page_shows_eight_months(client, db, doctor):
     assert page.text.count('class="mini-month"') == 8
     assert 'value="2026-12-31"' not in page.text and 'value="2027-01-01"' in page.text
     assert 'value="2027-08-31"' in page.text and 'value="2027-09-01"' not in page.text
-    # One month per step.
-    assert 'href="/conges?debut=2026-12"' in page.text and "Précédent<" in page.text
-    assert 'href="/conges?debut=2027-02"' in page.text and ">Suivant" in page.text
+    # One whole 8-month block per step.
+    assert 'href="/conges?debut=2026-05"' in page.text and "Précédent<" in page.text
+    assert 'href="/conges?debut=2027-09"' in page.text and ">Suivant" in page.text
 
 
 @pytest.mark.parametrize(
