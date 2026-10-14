@@ -126,7 +126,6 @@ async def test_create_users_assigns_codes_and_colors(admin_client, db, make_clin
             {
                 "email": email,
                 "full_name": name,
-                "password": "initial-password-1",
                 "clinic_id": str(clinic.id),
             },
         )
@@ -137,20 +136,15 @@ async def test_create_users_assigns_codes_and_colors(admin_client, db, make_clin
     assert by_email["b@ex.lu"].doctor_code == "NRO"
     assert by_email["a@ex.lu"].color == DOCTOR_PALETTE[0]
     assert by_email["b@ex.lu"].color == DOCTOR_PALETTE[1]
-    assert all(u.must_change_password for u in users)
+    assert not any(u.must_change_password for u in users)  # they choose it via the invitation
 
 
 async def test_create_user_validation_errors(admin_client, db, make_clinic):
     clinic = await make_clinic()
-    base = {"email": "a@ex.lu", "full_name": "Anne Dupont", "password": "initial-password-1"}
+    base = {"email": "a@ex.lu", "full_name": "Anne Dupont"}
 
     no_clinic = await post_form(admin_client, "/admin/users", base)
     assert no_clinic.status_code == 400 and "Choisissez un groupe" in no_clinic.text
-
-    weak = await post_form(
-        admin_client, "/admin/users", base | {"password": "short", "clinic_id": str(clinic.id)}
-    )
-    assert weak.status_code == 400 and "au moins 12" in weak.text
 
     both = await post_form(
         admin_client,
@@ -179,7 +173,6 @@ async def test_create_superadmin(admin_client, db):
         {
             "email": "second@ex.lu",
             "full_name": "Second Admin",
-            "password": "initial-password-1",
             "is_superadmin": "true",
         },
     )
@@ -246,47 +239,125 @@ async def test_users_list_filters(admin_client, db, make_clinic, make_user):
     assert garbage.status_code == 200
 
 
-async def test_admin_created_and_reset_users_must_change_password(
-    admin_client, app, db, make_clinic
-):
-    """Both admin-issued passwords force a change at next login (like the bootstrap admin)."""
-    from httpx import ASGITransport, AsyncClient
-
-    from tests.conftest import TEST_CSRF_COOKIE
-
+async def test_admin_reset_user_must_change_password(admin_client, app, db, make_clinic, make_user):
+    """An admin-issued temporary password forces a change at next login."""
     clinic = await make_clinic()
-    await post_form(
-        admin_client,
-        "/admin/users",
-        {
-            "email": "new@ex.lu",
-            "full_name": "Nouveau Médecin",
-            "password": "initial-password-1",
-            "clinic_id": str(clinic.id),
-        },
-    )
-    user = await db.scalar(select(User).where(User.email == "new@ex.lu"))
-    assert user.must_change_password is True
-
-    async def first_login(password: str) -> str:
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://testserver") as doctor:
-            doctor.cookies.set("csrftoken", TEST_CSRF_COOKIE)
-            response = await login(doctor, "new@ex.lu", password)
-            assert response.headers["location"] == "/parametres"
-            blocked = await doctor.get("/")
-            return blocked.headers["location"]
-
-    assert await first_login("initial-password-1") == "/parametres"
-
-    # Simulate the doctor having changed it, then the admin resets it again.
-    user.must_change_password = False
-    await db.commit()
+    user = await make_user("new@ex.lu", "Nouveau Médecin", clinic=clinic)
     page = await post_form(admin_client, f"/admin/users/{user.id}/reset-password")
     temporary = re.search(r'<code class="secret">([^<]+)</code>', page.text).group(1)
     await db.refresh(user)
     assert user.must_change_password is True
-    assert await first_login(temporary) == "/parametres"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as doc:
+        doc.cookies.set("csrftoken", TEST_CSRF_COOKIE)
+        response = await login(doc, "new@ex.lu", temporary)
+        assert response.headers["location"] == "/parametres"
+        assert (await doc.get("/")).headers["location"] == "/parametres"
+
+
+# --- Invitations ----------------------------------------------------------------------------
+
+
+async def _create_invited_doctor(admin_client, clinic) -> None:
+    response = await post_form(
+        admin_client,
+        "/admin/users",
+        {"email": "invite@ex.lu", "full_name": "Juan Manuel", "clinic_id": str(clinic.id)},
+    )
+    assert response.status_code == 303
+
+
+async def test_invitation_flow_end_to_end(admin_client, app, db, mailer, make_clinic):
+    """Create user → invitation emailed → link consumed → first login works."""
+    clinic = await make_clinic()
+    await _create_invited_doctor(admin_client, clinic)
+    assert "Invitation envoyée à invite@ex.lu" in (await admin_client.get("/admin/users")).text
+
+    [email] = mailer.sent
+    assert email.to == "invite@ex.lu" and email.subject.startswith("Bienvenue")
+    assert "Bonjour Juan Manuel" in email.text and "72 heures" in email.text
+    link = mailer.last_link()
+    assert link.startswith("/invitation/")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as doc:
+        doc.cookies.set("csrftoken", TEST_CSRF_COOKIE)
+        # Not usable before the invitation: no password was ever disclosed.
+        assert (await login(doc, "invite@ex.lu", DEFAULT_PASSWORD)).status_code == 401
+
+        form = await doc.get(link)
+        assert form.status_code == 200 and "Bienvenue" in form.text
+        mismatch = await post_form(
+            doc, link, {"password": "first-password-42", "password_confirm": "other-password-42"}
+        )
+        assert mismatch.status_code == 400
+        done = await post_form(
+            doc, link, {"password": "first-password-42", "password_confirm": "first-password-42"}
+        )
+        assert done.status_code == 303 and done.headers["location"] == "/login"
+        assert (await doc.get(link)).status_code == 400  # single use
+
+        response = await login(doc, "invite@ex.lu", "first-password-42")
+        assert response.status_code == 303 and response.headers["location"] == "/"
+        assert (await doc.get("/")).status_code == 200
+
+    user = await db.scalar(select(User).where(User.email == "invite@ex.lu"))
+    assert not user.must_change_password
+    actions = (
+        await db.scalars(select(AuditLog.action).where(AuditLog.target_id == str(user.id)))
+    ).all()
+    assert {"user_created", "invitation_sent", "password_changed", "login"} <= set(actions)
+    via = await db.scalar(
+        select(AuditLog.meta).where(
+            AuditLog.action == "password_changed", AuditLog.target_id == str(user.id)
+        )
+    )
+    assert via == {"via": "invitation"}
+
+
+async def test_resend_invitation_replaces_previous_link(admin_client, app, db, mailer, make_clinic):
+    clinic = await make_clinic()
+    await _create_invited_doctor(admin_client, clinic)
+    first_link = mailer.last_link()
+    user = await db.scalar(select(User).where(User.email == "invite@ex.lu"))
+
+    profile = await admin_client.get(f"/admin/users/{user.id}")
+    assert "Renvoyer l&#39;invitation" in profile.text or "Renvoyer l'invitation" in profile.text
+    response = await post_form(admin_client, f"/admin/users/{user.id}/resend-invitation")
+    assert response.status_code == 303 and response.headers["location"] == f"/admin/users/{user.id}"
+    assert len(mailer.sent) == 2
+    assert mailer.last_link() != first_link
+    assert (await admin_client.get(first_link)).status_code == 400
+    assert (await admin_client.get(mailer.last_link())).status_code == 200
+
+
+async def test_invitation_email_failure_is_reported(admin_client, db, mailer, make_clinic):
+    clinic = await make_clinic()
+    mailer.fail = True
+    await _create_invited_doctor(admin_client, clinic)
+    page = await admin_client.get("/admin/users")
+    assert "pas pu être envoyée" in page.text
+    user = await db.scalar(select(User).where(User.email == "invite@ex.lu"))
+    assert user is not None  # the account exists; the admin can resend
+
+    resend = await post_form(admin_client, f"/admin/users/{user.id}/resend-invitation")
+    assert "pas pu être envoyée" in (await admin_client.get(resend.headers["location"])).text
+
+
+async def test_no_invitation_for_inactive_user(admin_client, db, mailer, make_clinic, make_user):
+    clinic = await make_clinic()
+    user = await make_user("off@ex.lu", clinic=clinic, active=False)
+    response = await post_form(admin_client, f"/admin/users/{user.id}/resend-invitation")
+    assert "inactif" in (await admin_client.get(response.headers["location"])).text
+    assert mailer.sent == []
+
+
+async def test_invalid_invitation_link(client, db):
+    page = await client.get("/invitation/not-a-token")
+    assert page.status_code == 400 and "renvoyer l" in page.text
+    submit = await post_form(
+        client, "/invitation/not-a-token", {"password": "x" * 12, "password_confirm": "x" * 12}
+    )
+    assert submit.status_code == 400
 
 
 # =========================================================================================

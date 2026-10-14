@@ -74,6 +74,9 @@ class Settings(BaseSettings):
 
     # Password reset
     password_reset_ttl_minutes: int = 60
+    # Invitation link of a new user (first password). Longer than a reset link: the email
+    # arrives unsolicited and may only be read days later.
+    invitation_ttl_hours: int = 72
 
     # Logging
     log_level: str = "INFO"

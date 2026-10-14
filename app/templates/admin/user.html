@@ -13,6 +13,13 @@
     <dt>Dernière connexion</dt><dd>{{ user.last_login_at|local_datetime if user.last_login_at else '—' }}</dd>
     <dt>Créé le</dt><dd>{{ user.created_at|local_datetime }}</dd>
   </dl>
+  {% if not user.last_login_at %}
+  <form method="post" action="/admin/users/{{ user.id }}/resend-invitation" class="row">
+    {{ csrf_input(request) }}
+    <button type="submit">Renvoyer l'invitation</button>
+    <span class="muted small">Jamais connecté : un nouveau lien remplace le précédent.</span>
+  </form>
+  {% endif %}
   <h2>Activité récente <a class="small" href="/admin/audit?user={{ user.id }}">tout voir</a></h2>
   {% with entries=entries, compact=true %}{% include "admin/_audit_table.html" %}{% endwith %}
 </section>

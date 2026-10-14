@@ -65,8 +65,8 @@ class FakeMailer:
         self.sent.append(message)
 
     def last_link(self) -> str:
-        match = re.search(r"http://testserver(/reset/\S+)", self.sent[-1].text)
-        assert match, "no reset link in email"
+        match = re.search(r"http://testserver(/(?:reset|invitation)/\S+)", self.sent[-1].text)
+        assert match, "no password link in email"
         return match.group(1)
 
 

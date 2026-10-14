@@ -1,0 +1,11 @@
+Bonjour {{ full_name }},
+
+Un compte a été créé pour vous sur le Planificateur des gardes.
+
+Pour l'activer, choisissez votre mot de passe en ouvrant ce lien (valable {{ ttl_hours }} heures, utilisable une seule fois) :
+{{ link }}
+
+S'il a expiré, demandez à votre administrateur de vous renvoyer l'invitation.
+
+---
+Arrakis IT Services · https://www.arrakis.lu

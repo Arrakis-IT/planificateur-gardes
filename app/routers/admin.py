@@ -11,18 +11,21 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import Response
 
-from app.dependencies import DbSession, SuperadminAuth, require_superadmin
+from app.dependencies import AppSettings, DbSession, SuperadminAuth, require_superadmin
 from app.models import Clinic, User
 from app.repositories import clinics as clinics_repo
 from app.repositories import users as users_repo
 from app.schemas.forms import ClinicForm, UserCreateForm
 from app.services import audit
-from app.services.auth import revoke_user_sessions, set_password
+from app.services.auth import is_user_allowed, revoke_user_sessions, send_invitation, set_password
 from app.services.doctors import DoctorCodeError
-from app.services.security import generate_temporary_password, validate_new_password
+from app.services.mail import MailSender, get_mail_sender
+from app.services.security import generate_temporary_password, generate_token
 from app.templating import render, set_flash
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_superadmin)])
+
+Mailer = Annotated[MailSender, Depends(get_mail_sender)]
 
 SUPERADMINS_FILTER = "superadmins"
 CLINICS_PAGE = "/admin/clinics"
@@ -212,9 +215,14 @@ async def users_page(
 
 @router.post("/users")
 async def user_create(
-    request: Request, form: Annotated[UserCreateForm, Form()], db: DbSession, auth: SuperadminAuth
+    request: Request,
+    form: Annotated[UserCreateForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+    settings: AppSettings,
+    mailer: Mailer,
 ) -> Response:
-    """Create a user; the initial password must be changed at first login."""
+    """Create a user and email them an invitation to choose their first password."""
     form_values = {
         "email": form.email,
         "full_name": form.full_name,
@@ -239,9 +247,6 @@ async def user_create(
         if await clinics_repo.get_clinic(db, clinic_id) is None:
             return await fail("Groupe introuvable.")
 
-    pw_error = validate_new_password(form.password, form.password, form.email)
-    if pw_error:
-        return await fail(pw_error)
     if await users_repo.get_user_by_email(db, form.email) is not None:
         return await fail("Un utilisateur avec cette adresse e-mail existe déjà.")
 
@@ -250,9 +255,11 @@ async def user_create(
             db,
             email=form.email,
             full_name=form.full_name,
-            password=form.password,
+            # Random, never disclosed: the account cannot log in until the invitation is used.
+            password=generate_token(),
             clinic_id=clinic_id,
             is_superadmin=form.is_superadmin,
+            must_change_password=False,
         )
     except DoctorCodeError as exc:
         return await fail(str(exc))
@@ -274,8 +281,39 @@ async def user_create(
             "is_superadmin": user.is_superadmin,
         },
     )
+    sent = await send_invitation(db, user, settings, request, mailer, actor_id=auth.real_user.id)
     await db.commit()
-    return _redirect(USERS_PAGE, f"Utilisateur {user.full_name} ({user.doctor_code}) créé.")
+    created = f"Utilisateur {user.full_name} ({user.doctor_code}) créé."
+    if not sent:
+        return _redirect(
+            USERS_PAGE,
+            f"{created} L'invitation n'a pas pu être envoyée : renvoyez-la depuis sa fiche.",
+            "warn",
+        )
+    return _redirect(USERS_PAGE, f"{created} Invitation envoyée à {user.email}.")
+
+
+@router.post("/users/{user_id}/resend-invitation")
+async def user_resend_invitation(
+    request: Request,
+    user_id: uuid.UUID,
+    db: DbSession,
+    auth: SuperadminAuth,
+    settings: AppSettings,
+    mailer: Mailer,
+) -> Response:
+    """Send a new invitation link (the previous one stops working)."""
+    user = await _get_user_or_404(db, user_id)
+    profile = f"{USERS_PAGE}/{user.id}"
+    if not is_user_allowed(user):
+        return _redirect(profile, "Compte ou groupe inactif : invitation non envoyée.", "error")
+    sent = await send_invitation(db, user, settings, request, mailer, actor_id=auth.real_user.id)
+    await db.commit()
+    if not sent:
+        return _redirect(
+            profile, "L'invitation n'a pas pu être envoyée. Réessayez plus tard.", "error"
+        )
+    return _redirect(profile, f"Invitation renvoyée à {user.email}.")
 
 
 @router.post("/users/{user_id}/reset-password")

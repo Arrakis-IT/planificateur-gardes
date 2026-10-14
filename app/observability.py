@@ -10,8 +10,8 @@ Privacy (`scrub_event`, the `before_send` hook) — health-sector users, so the 
 "drop rather than redact" wherever a field could carry personal data:
 
 * request: cookies, body (`data`) and query string removed; headers kept only from a short
-  allow-list (no Authorization, Cookie, CSRF token, X-Forwarded-For…); reset tokens in the
-  URL path (`/reset/<token>`) replaced by `[token]`.
+  allow-list (no Authorization, Cookie, CSRF token, X-Forwarded-For…); reset and invitation
+  tokens in the URL path (`/reset/<token>`, `/invitation/<token>`) replaced by `[token]`.
 * user: removed entirely (no id, email, username or IP).
 * `server_name` removed; stack frames sent without local variables
   (`include_local_variables=False`), so form values never leak through frames.
@@ -55,7 +55,7 @@ _IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}+\.){3}\d{1,3}+(?!\.?\d)")
 # IPv6 candidates (incl. compressed "::" forms), confirmed with the ipaddress module so that
 # e.g. clock times like "12:30:45" are left alone.
 _IPV6_CANDIDATE_RE = re.compile(r"(?<![\w:])[0-9A-Fa-f]{0,4}+(?::[0-9A-Fa-f]{0,4}+){2,7}+(?![\w:])")
-_RESET_PATH_RE = re.compile(r"(/reset/)[^/?#\s]++")
+_RESET_PATH_RE = re.compile(r"(/(?:reset|invitation)/)[^/?#\s]++")
 
 
 def app_version() -> str:

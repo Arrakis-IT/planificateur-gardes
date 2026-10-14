@@ -17,3 +17,14 @@ def build_password_reset_email(user: User, link: str, ttl_minutes: int) -> Outgo
         text=render_email("password_reset.txt", context),
         html=render_email("password_reset.html", context),
     )
+
+
+def build_invitation_email(user: User, link: str, ttl_hours: int) -> OutgoingEmail:
+    """Welcome email of a new user, with the single-use link to choose a first password."""
+    context = {"full_name": user.full_name, "link": link, "ttl_hours": ttl_hours}
+    return OutgoingEmail(
+        to=user.email,
+        subject="Bienvenue sur le Planificateur des gardes",
+        text=render_email("invitation.txt", context),
+        html=render_email("invitation.html", context),
+    )

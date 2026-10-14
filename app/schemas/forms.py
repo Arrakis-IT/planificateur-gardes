@@ -67,7 +67,6 @@ class UserCreateForm(_Form):
     full_name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=2, max_length=200)
     ]
-    password: Password
     clinic_id: Annotated[str, StringConstraints(strip_whitespace=True, max_length=64)] = ""
     is_superadmin: bool = False
 

@@ -396,6 +396,12 @@ async def test_sentry_test_route_absent_outside_development(client):
     assert (await client.get("/_dev/sentry-test")).status_code == 404
 
 
+def test_invitation_token_scrubbed_from_paths():
+    from app.observability import _scrub_text
+
+    assert _scrub_text("GET /invitation/s3cr3t?x=1") == "GET /invitation/[token]?x=1"
+
+
 @pytest.mark.parametrize(
     "hostile",
     [
@@ -406,6 +412,7 @@ async def test_sentry_test_route_absent_outside_development(client):
         ":" * 100_000,
         "1:" * 50_000 + "z",  # IPv6-like run that never validates
         "/reset/" + "x" * 100_000,
+        "/invitation/" + "x" * 100_000,
     ],
 )
 def test_scrubbing_regexes_run_in_linear_time(hostile):

@@ -93,10 +93,6 @@
       <input type="email" id="email" name="email" value="{{ form.email or '' }}" required>
     </div>
     <div>
-      <label for="password">Mot de passe initial (12 caractères minimum)</label>
-      <input type="text" id="password" name="password" minlength="12" autocomplete="off" required>
-    </div>
-    <div>
       <label for="clinic_id">Groupe</label>
       <select id="clinic_id" name="clinic_id">
         <option value="">— Aucun (superadministrateur) —</option>
@@ -113,6 +109,6 @@
       <button type="submit" class="primary">Créer l'utilisateur</button>
     </div>
   </form>
-  <p class="muted">Le code médecin et la couleur sont attribués automatiquement. L'utilisateur devra changer son mot de passe à la première connexion.</p>
+  <p class="muted">Le code médecin et la couleur sont attribués automatiquement. L'utilisateur reçoit un e-mail d'invitation pour choisir son mot de passe ; il ne peut pas se connecter avant.</p>
 </section>
 {% endblock %}

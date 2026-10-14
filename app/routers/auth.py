@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Login, logout and password reset routes (anonymous-facing)."""
+"""Login, logout, password reset and invitation routes (anonymous-facing)."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
@@ -145,31 +145,67 @@ async def reset_request(
     return render(request, "auth/reset_sent.html")
 
 
+# --- Emailed password links -----------------------------------------------------------------
+# /reset/{token} (forgotten password) and /invitation/{token} (first password of a new user)
+# share the single-use token table, the form and the checks; only the wording differs.
+
+PasswordLink = Literal["reset", "invitation"]
+DONE_MESSAGES: dict[PasswordLink, str] = {
+    "reset": "Votre mot de passe a été modifié. Vous pouvez vous connecter.",
+    "invitation": "Votre mot de passe est enregistré. Vous pouvez vous connecter.",
+}
+
+
+async def _password_link_form(
+    request: Request, db: DbSession, kind: PasswordLink, token: str
+) -> Response:
+    context = {"kind": kind, "token": token}
+    if await get_valid_reset_token(db, token) is None:
+        return render(request, "auth/reset_invalid.html", context, 400)
+    return render(request, "auth/reset_form.html", context)
+
+
+async def _password_link_submit(
+    request: Request, db: DbSession, kind: PasswordLink, token: str, form: NewPasswordForm
+) -> Response:
+    context = {"kind": kind, "token": token}
+    found = await get_valid_reset_token(db, token)
+    if found is None:
+        return render(request, "auth/reset_invalid.html", context, 400)
+    reset_token, user = found
+    error = validate_new_password(form.password, form.password_confirm, user.email)
+    if error:
+        return render(request, "auth/reset_form.html", context | {"error": error}, 400)
+    await complete_password_reset(db, reset_token, user, form.password, request, via=kind)
+    await db.commit()
+    response = RedirectResponse("/login", status_code=303)
+    set_flash(response, DONE_MESSAGES[kind])
+    return response
+
+
 @router.get("/reset/{token}")
 async def reset_form(request: Request, token: str, db: DbSession) -> Response:
     """New password form, or an 'invalid link' page."""
-    if await get_valid_reset_token(db, token) is None:
-        return render(request, "auth/reset_invalid.html", status_code=400)
-    return render(request, "auth/reset_form.html", {"token": token})
+    return await _password_link_form(request, db, "reset", token)
 
 
 @router.post("/reset/{token}")
 async def reset_submit(
-    request: Request,
-    token: str,
-    form: Annotated[NewPasswordForm, Form()],
-    db: DbSession,
+    request: Request, token: str, form: Annotated[NewPasswordForm, Form()], db: DbSession
 ) -> Response:
     """Consume the token and set the new password."""
-    found = await get_valid_reset_token(db, token)
-    if found is None:
-        return render(request, "auth/reset_invalid.html", status_code=400)
-    reset_token, user = found
-    error = validate_new_password(form.password, form.password_confirm, user.email)
-    if error:
-        return render(request, "auth/reset_form.html", {"token": token, "error": error}, 400)
-    await complete_password_reset(db, reset_token, user, form.password, request)
-    await db.commit()
-    response = RedirectResponse("/login", status_code=303)
-    set_flash(response, "Votre mot de passe a été modifié. Vous pouvez vous connecter.")
-    return response
+    return await _password_link_submit(request, db, "reset", token, form)
+
+
+@router.get("/invitation/{token}")
+async def invitation_form(request: Request, token: str, db: DbSession) -> Response:
+    """First password form of an invited user, or an 'invalid link' page."""
+    return await _password_link_form(request, db, "invitation", token)
+
+
+@router.post("/invitation/{token}")
+async def invitation_submit(
+    request: Request, token: str, form: Annotated[NewPasswordForm, Form()], db: DbSession
+) -> Response:
+    """Consume the invitation token and set the first password."""
+    return await _password_link_submit(request, db, "invitation", token, form)

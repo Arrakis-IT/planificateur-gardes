@@ -1,13 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Nouveau mot de passe{% endblock %}
+{% block title %}{{ 'Bienvenue' if kind == 'invitation' else 'Nouveau mot de passe' }}{% endblock %}
 {% block content %}
 <section class="panel narrow">
-  <h1>Nouveau mot de passe</h1>
+  {% if kind == 'invitation' %}
+    <h1>Bienvenue</h1>
+    <p>Choisissez le mot de passe de votre compte pour terminer son activation.</p>
+  {% else %}
+    <h1>Nouveau mot de passe</h1>
+  {% endif %}
   {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
-  <form method="post" action="/reset/{{ token }}" class="stack">
+  <form method="post" action="/{{ kind }}/{{ token }}" class="stack">
     {{ csrf_input(request) }}
     <div>
-      <label for="password">Nouveau mot de passe (12 caractères minimum)</label>
+      <label for="password">{{ 'Mot de passe' if kind == 'invitation' else 'Nouveau mot de passe' }} (12 caractères minimum)</label>
       <input type="password" id="password" name="password" autocomplete="new-password" minlength="12" required>
     </div>
     <div>

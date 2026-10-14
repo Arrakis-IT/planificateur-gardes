@@ -33,7 +33,7 @@ from app.config import Settings
 from app.models import AuditLog, PasswordResetToken, User, UserSession
 from app.repositories import users as users_repo
 from app.services import audit
-from app.services.emails import build_password_reset_email
+from app.services.emails import build_invitation_email, build_password_reset_email
 from app.services.mail import MailSender
 from app.services.security import (
     derive_key,
@@ -280,7 +280,8 @@ async def set_password(
 ) -> None:
     """Set a new password, revoke all sessions and audit. Caller commits.
 
-    `via`: "self" (settings page), "reset" (emailed link) or "admin" (temporary password).
+    `via`: "self" (settings page), "reset" (emailed link), "invitation" (first password)
+    or "admin" (temporary password).
     """
     user.password_hash = hash_password(new_password)
     user.must_change_password = must_change
@@ -297,7 +298,55 @@ async def set_password(
     )
 
 
-# --- Password reset ------------------------------------------------------------------------
+# --- Password reset / invitation ----------------------------------------------------------
+
+
+async def _issue_password_token(db: AsyncSession, user: User, ttl: timedelta) -> str:
+    """Create a single-use password token; only the most recent link of a user is valid."""
+    await db.execute(
+        update(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .values(used_at=_now())
+    )
+    token = generate_token()
+    db.add(
+        PasswordResetToken(user_id=user.id, token_hash=hash_token(token), expires_at=_now() + ttl)
+    )
+    return token
+
+
+async def send_invitation(
+    db: AsyncSession,
+    user: User,
+    settings: Settings,
+    request: Request,
+    mailer: MailSender,
+    *,
+    actor_id: uuid.UUID,
+) -> bool:
+    """Email a link to choose a first password (new user, or resent by an admin).
+
+    Returns False when the email could not be sent; the token is kept, so the caller
+    commits either way and the admin can resend. Caller commits.
+    """
+    token = await _issue_password_token(db, user, timedelta(hours=settings.invitation_ttl_hours))
+    audit.record(
+        db,
+        "invitation_sent",
+        request=request,
+        user_id=actor_id,
+        clinic_id=user.clinic_id,
+        target_type="user",
+        target_id=user.id,
+    )
+    await db.flush()
+    link = f"{settings.app_base_url.rstrip('/')}/invitation/{token}"
+    try:
+        await mailer.send(build_invitation_email(user, link, settings.invitation_ttl_hours))
+    except Exception:
+        logger.exception("Invitation email could not be sent (user_id=%s)", user.id)
+        return False
+    return True
 
 
 async def request_password_reset(
@@ -337,19 +386,8 @@ async def request_password_reset(
         logger.warning("Password reset throttled (user_id=%s)", user.id)
         return
 
-    # Only the most recent link is valid.
-    await db.execute(
-        update(PasswordResetToken)
-        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
-        .values(used_at=_now())
-    )
-    token = generate_token()
-    db.add(
-        PasswordResetToken(
-            user_id=user.id,
-            token_hash=hash_token(token),
-            expires_at=_now() + timedelta(minutes=settings.password_reset_ttl_minutes),
-        )
+    token = await _issue_password_token(
+        db, user, timedelta(minutes=settings.password_reset_ttl_minutes)
     )
     audit.record(
         db,
@@ -400,7 +438,9 @@ async def complete_password_reset(
     user: User,
     new_password: str,
     request: Request,
+    *,
+    via: str = "reset",
 ) -> None:
     """Consume the token and set the new password. Caller commits."""
     token.used_at = _now()
-    await set_password(db, user, new_password, request, via="reset")
+    await set_password(db, user, new_password, request, via=via)

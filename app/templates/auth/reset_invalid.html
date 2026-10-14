@@ -3,7 +3,11 @@
 {% block content %}
 <section class="panel narrow">
   <h1>Lien invalide ou expiré</h1>
-  <p>Ce lien de réinitialisation n'est plus valable. Vous pouvez en demander un nouveau.</p>
-  <p><a href="/reset">Demander un nouveau lien</a></p>
+  {% if kind == 'invitation' %}
+    <p>Ce lien d'invitation n'est plus valable. Demandez à votre administrateur de vous renvoyer l'invitation.</p>
+  {% else %}
+    <p>Ce lien de réinitialisation n'est plus valable. Vous pouvez en demander un nouveau.</p>
+    <p><a href="/reset">Demander un nouveau lien</a></p>
+  {% endif %}
 </section>
 {% endblock %}

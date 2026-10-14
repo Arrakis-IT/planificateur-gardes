@@ -59,7 +59,9 @@ A superadmin is created at first start from the bootstrap variables of `.env.exa
   first login)
 
 From the admin panel, create a clinic and its doctors, then log in as a doctor (or use
-*Se connecter en tant que*) to use the clinic pages.
+*Se connecter en tant que*) to use the clinic pages. New users receive an invitation e-mail
+(captured by Mailpit in development) with a single-use link to choose their password
+(valid `INVITATION_TTL_HOURS`, 72 h by default); they cannot log in before.
 
 The code is mounted into the container with auto-reload. Migrations run at container start
 (`alembic upgrade head`).
