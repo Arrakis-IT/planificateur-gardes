@@ -35,6 +35,7 @@
         {% if admin_page or (auth and auth.is_superadmin and not auth.clinic) %}<span class="subtitle">Administration</span>
         {% elif auth and auth.clinic %}<span class="subtitle">{{ auth.clinic.name }}</span>{% endif %}
         {% if live %}<span id="presence" class="presence" aria-live="polite" hidden></span>{% endif %}
+        {% if auth %}<div class="greeting">Bonjour {{ auth.real_user.full_name }}</div>{% endif %}
       </div>
       {% if auth %}
       <nav class="nav" aria-label="Navigation">
@@ -53,7 +54,6 @@
           <a href="/generer" class="{{ 'active' if path == '/generer' }}">Générer</a>
           <a href="/resultats" class="{{ 'active' if path == '/resultats' }}">Résultats</a>
         {% endif %}
-        <span class="greeting">Bonjour {{ auth.real_user.full_name }}</span>
         <a href="/parametres">Paramètres</a>
         <form method="post" action="/logout" class="inline">
           {{ csrf_input(request) }}
