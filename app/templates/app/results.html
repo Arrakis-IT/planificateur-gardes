@@ -69,7 +69,7 @@
   <div class="results-months-grid">
     {% for first in months %}
       <div class="month-block">
-        <div class="month-title capitalize">{{ first|month_label }}</div>
+        <div class="month-title capitalize">{{ first|month_label }}{% if first in locked_months %} {{ m.lock_badge() }}{% endif %}</div>
         {{ m.month_grid(first, month_weeks(first), days, today, filter_code, return_to) }}
       </div>
     {% endfor %}

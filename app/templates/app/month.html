@@ -4,7 +4,7 @@
 {% block content %}
 <section class="panel">
   <div class="panel-header">
-    <h1 class="capitalize">{{ first|month_label }}</h1>
+    <h1 class="capitalize">{{ first|month_label }}{% if days[first].locked %} {{ m.lock_badge() }}{% endif %}</h1>
     <nav class="pager">
       <a href="/mois?mois={{ prev.strftime('%Y-%m') }}">‹ mois précédent</a>
       <a href="/mois">ce mois-ci</a>

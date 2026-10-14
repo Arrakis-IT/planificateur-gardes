@@ -32,6 +32,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             unique=True,
             postgresql_where="clinic_id IS NOT NULL",
         ),
+        # At most one group admin per clinic.
+        Index(
+            "uq_user_clinic_id_group_admin",
+            "clinic_id",
+            unique=True,
+            postgresql_where="is_group_admin",
+        ),
     )
 
     email: Mapped[str] = mapped_column(CITEXT, nullable=False, unique=True)
@@ -43,6 +50,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("clinic.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     is_superadmin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    # Group admin of their clinic: locks / unlocks months (see app/services/locks.py).
+    is_group_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     must_change_password: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=false()
     )

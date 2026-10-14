@@ -4,6 +4,7 @@
   {% else %}
     <p class="alert alert-error">La date de début doit précéder la date de fin.</p>
   {% endif %}
+  {% if locked_warning %}<p class="alert alert-warn">🔒 {{ locked_warning }}</p>{% endif %}
   {% if doctors %}
   <table class="table">
     <thead><tr><th>Médecin</th><th class="num">Jours de congés</th></tr></thead>

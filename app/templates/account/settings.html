@@ -35,5 +35,8 @@
     </div>
     <button type="submit" class="primary">Enregistrer</button>
   </form>
+  {% if lock_rows is not none and not forced %}
+    {% include "partials/_month_locks.html" %}
+  {% endif %}
 </section>
 {% endblock %}

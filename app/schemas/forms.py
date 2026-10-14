@@ -8,6 +8,7 @@ Business rules (password policy, uniqueness…) are checked in the routes so the
 be re-rendered with a French message.
 """
 
+import uuid
 from datetime import date as date_type
 from typing import Annotated, Literal
 
@@ -77,6 +78,19 @@ class ProfileForm(_Form):
 
 
 MonthKey = Annotated[str, StringConstraints(max_length=7)]
+
+
+class MonthLockForm(_Form):
+    """Lock / unlock one month (settings or admin clinic sheet)."""
+
+    month: Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}$")]
+    action: Literal["lock", "unlock"]
+
+
+class GroupAdminForm(_Form):
+    """POST /admin/clinic/{id}/group-admin."""
+
+    user_id: uuid.UUID
 
 
 class DayForm(_Form):

@@ -4,7 +4,8 @@
 """Day-by-day changes between the previous and the new generation (schedule email).
 
 Only the days covered by both generations are compared: days that left the period, new
-days and vacations are out of scope (the attached PDF shows the full new schedule).
+days, days of locked months and vacations are out of scope (the attached PDF shows the full
+new schedule).
 `build_changelog` is pure; `load_changelog` reads both generations from the database.
 
 Entry format (`describe_change`), "(sur place)" flags and red highlight (any change that
@@ -26,7 +27,7 @@ An unassigned day reads "non assigné" in place of a doctor name.
 """
 
 import uuid
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -35,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Assignment, Generation
 from app.repositories import scheduling as repo
 from app.services.calendar import Period, day_month_year
+from app.services.locks import locked_months
 
 UNASSIGNED_LABEL = "non assigné"
 ONSITE_SUFFIX = " (sur place)"
@@ -90,8 +92,12 @@ def build_changelog(
     before: Mapping[date, DayState],
     current: Period,
     after: Mapping[date, DayState],
+    locked: Collection[date] = (),
 ) -> Changelog | None:
-    """Changes on the overlap of both periods, by date; None when they do not overlap."""
+    """Changes on the overlap of both periods, by date; None when they do not overlap.
+
+    Days of `locked` months (first days) are left out.
+    """
     start, end = max(previous.start, current.start), min(previous.end, current.end)
     if start > end:
         return None
@@ -99,6 +105,8 @@ def build_changelog(
     entries: list[ChangeEntry] = []
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
+        if day.replace(day=1) in locked:
+            continue
         change = describe_change(before.get(day, unassigned), after.get(day, unassigned))
         if change is not None:
             entries.append(ChangeEntry(day, *change))
@@ -136,4 +144,5 @@ async def load_changelog(
         _states(await repo.generation_assignments(db, clinic_id, previous.id), names, onsite),
         current_period,
         _states(await repo.generation_assignments(db, clinic_id, generation.id), names, onsite),
+        await locked_months(db, clinic_id, start, end),
     )

@@ -85,6 +85,23 @@ class CustomHoliday(UUIDPrimaryKeyMixin, Base):
     label: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class MonthLock(UUIDPrimaryKeyMixin, Base):
+    """A month of a clinic frozen by its group admin (no edits of assignments, vacations or
+    on-site days falling in it). `month` is the first day of the month."""
+
+    __tablename__ = "month_lock"
+    __table_args__ = (UniqueConstraint("clinic_id", "month"),)
+
+    clinic_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False
+    )
+    month: Mapped[date] = mapped_column(Date, nullable=False)
+    locked_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
+    locked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class Generation(UUIDPrimaryKeyMixin, Base):
     """One run of the scheduler for a clinic. Exactly one is active per clinic."""
 

@@ -17,6 +17,7 @@ from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
 from app.services import audit
 from app.services.holidays import holidays_between
+from app.services.locks import is_locked, locked_months
 from app.services.scheduler import (
     UNASSIGNED,
     Doctor,
@@ -46,6 +47,7 @@ class DayView:
     doctor: User | None  # no doctor on a planned day means "unassigned" (XX)
     drafted: bool = False  # shows a not yet saved edit of the shared draft
     onsite_setting: bool = False  # marked on-site in the clinic settings
+    locked: bool = False  # in a month locked by the group admin (read-only)
 
     @property
     def unassigned(self) -> bool:
@@ -95,6 +97,7 @@ async def build_days(
     onsite = await repo.list_onsite_days(db, clinic_id, start, end)
     holidays = await public_holidays(db, clinic_id, start, end)
     users = await repo.users_by_id(db, clinic_id)
+    locked = await locked_months(db, clinic_id, start, end)
     days: dict[date, DayView] = {}
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
@@ -109,6 +112,7 @@ async def build_days(
             doctor=users.get(cell[0]) if cell is not None and cell[0] else None,
             drafted=day in drafted,
             onsite_setting=day in onsite,
+            locked=is_locked(day, locked),
         )
     return days
 
@@ -122,6 +126,7 @@ class GenerationRun:
 
     generation: Generation
     previous_id: uuid.UUID | None
+    locked_months: frozenset[date] = frozenset()  # kept as they were (first days)
 
 
 def validate_period(period_from: date, period_to: date) -> None:
@@ -140,7 +145,11 @@ async def run_generation(
     period_to: date,
     request: Request | None = None,
 ) -> GenerationRun:
-    """Run the scheduler, archive the active generation and store the new one. Caller commits."""
+    """Run the scheduler, archive the active generation and store the new one. Caller commits.
+
+    Days of locked months keep the active generation's assignment (doctor and on-site
+    removal); a locked day the active generation did not cover takes the scheduler's choice.
+    """
     validate_period(period_from, period_to)
     await repo.lock_clinic(db, clinic_id)
 
@@ -166,15 +175,22 @@ async def run_generation(
     result = await anyio.to_thread.run_sync(generate_schedule, schedule_request)
 
     user_of = {u.doctor_code: u.id for u in doctors}
+    assignments = {
+        day: (None if code == UNASSIGNED else user_of[code]) for day, code in result.items()
+    }
+    locked = await locked_months(db, clinic_id, period_from, period_to)
+    onsite_removed: set[date] = set()
+    if locked:
+        current = await repo.active_assignments(db, clinic_id, period_from, period_to)
+        for day, kept in current.items():
+            if is_locked(day, locked):
+                assignments[day] = kept.user_id
+                if kept.onsite_removed:
+                    onsite_removed.add(day)
     await drafts_repo.clear_drafts(db, clinic_id)  # edits of the old generation are moot
     previous_id = await repo.archive_active_generation(db, clinic_id)
     generation = await repo.create_generation(
-        db,
-        clinic_id,
-        period_from,
-        period_to,
-        actor.id,
-        {day: (None if code == UNASSIGNED else user_of[code]) for day, code in result.items()},
+        db, clinic_id, period_from, period_to, actor.id, assignments, onsite_removed
     )
     await repo.snapshot_onsite(db, clinic_id, generation.id)
     audit.record(
@@ -189,11 +205,12 @@ async def run_generation(
             "period_from": period_from.isoformat(),
             "period_to": period_to.isoformat(),
             "doctors": len(doctors),
-            "unassigned": sum(1 for code in result.values() if code == UNASSIGNED),
+            "unassigned": sum(1 for user_id in assignments.values() if user_id is None),
+            "locked_months": sorted(m.strftime("%Y-%m") for m in locked),
             "archived_generation": str(previous_id) if previous_id else None,
         },
     )
-    return GenerationRun(generation, previous_id)
+    return GenerationRun(generation, previous_id, frozenset(locked))
 
 
 # --- Results statistics -----------------------------------------------------------------------

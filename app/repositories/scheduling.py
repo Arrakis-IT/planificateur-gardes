@@ -178,8 +178,12 @@ async def create_generation(
     period_to: date,
     generated_by: uuid.UUID,
     assignments: dict[date, uuid.UUID | None],
+    onsite_removed: set[date] | None = None,
 ) -> Generation:
-    """Insert an active generation and its assignments (the caller archived the previous one)."""
+    """Insert an active generation and its assignments (the caller archived the previous one).
+
+    `onsite_removed`: days whose on-site mark is carried over as removed (locked months).
+    """
     generation = Generation(
         clinic_id=clinic_id,
         period_from=period_from,
@@ -189,7 +193,12 @@ async def create_generation(
     db.add(generation)
     await db.flush()
     db.add_all(
-        Assignment(generation_id=generation.id, date=day, user_id=user_id)
+        Assignment(
+            generation_id=generation.id,
+            date=day,
+            user_id=user_id,
+            onsite_removed=day in (onsite_removed or set()),
+        )
         for day, user_id in assignments.items()
     )
     await db.flush()

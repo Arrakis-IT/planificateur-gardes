@@ -1,0 +1,26 @@
+{# Month locks list (settings of the group admin, admin clinic sheet). Needs lock_rows, lock_action. #}
+<h2>Verrouillage des mois</h2>
+<p class="muted small">Un mois verrouillé ne peut plus être modifié par personne (affectations, congés, jours sur place) jusqu'à son déverrouillage. Une nouvelle génération conserve ses affectations.</p>
+<table class="table month-locks">
+  <tbody>
+  {% for row in lock_rows %}
+    <tr>
+      <td><span class="capitalize">{{ row.month|month_label }}</span></td>
+      <td>{% if row.locked %}<span class="badge lock-badge">🔒 Verrouillé</span>{% endif %}</td>
+      <td class="actions">
+        {% if row.locked or row.lockable %}
+        <form method="post" action="{{ lock_action }}" class="inline">
+          {{ csrf_input(request) }}
+          <input type="hidden" name="month" value="{{ row.key }}">
+          {% if row.locked %}
+            <button type="submit" name="action" value="unlock">Déverrouiller</button>
+          {% else %}
+            <button type="submit" name="action" value="lock">Verrouiller</button>
+          {% endif %}
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

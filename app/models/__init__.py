@@ -13,6 +13,7 @@ from app.models.scheduling import (
     CustomHoliday,
     Generation,
     Holiday,
+    MonthLock,
     OnsiteDay,
 )
 from app.models.session import UserSession
@@ -27,6 +28,7 @@ __all__ = [
     "CustomHoliday",
     "Generation",
     "Holiday",
+    "MonthLock",
     "OnsiteDay",
     "PasswordResetToken",
     "User",

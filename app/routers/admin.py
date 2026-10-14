@@ -19,6 +19,7 @@ from app.schemas.forms import ClinicForm, ProfileForm, UserCreateForm
 from app.services import audit
 from app.services.auth import is_user_allowed, revoke_user_sessions, send_invitation, set_password
 from app.services.doctors import DoctorCodeError
+from app.services.group_admin import get_group_admin, must_keep_group_admin, set_group_admin
 from app.services.mail import MailSender, get_mail_sender
 from app.services.profile import rename_user
 from app.services.security import generate_temporary_password, generate_token
@@ -268,6 +269,9 @@ async def user_create(
         await db.rollback()
         return await fail("Un utilisateur avec cette adresse e-mail existe déjà.")
 
+    if clinic_id is not None and await get_group_admin(db, clinic_id) is None:
+        # First user of the clinic: group admin by default.
+        await set_group_admin(db, clinic_id, user, actor_id=auth.real_user.id, automatic=True)
     audit.record(
         db,
         "user_created",
@@ -383,6 +387,13 @@ async def user_delete(
     user = await _get_user_or_404(db, user_id)
     if user.id == auth.real_user.id:
         return _redirect(USERS_PAGE, "Vous ne pouvez pas vous supprimer vous-même.", "error")
+    if await must_keep_group_admin(db, user):
+        return _redirect(
+            f"/admin/clinic/{user.clinic_id}",
+            f"{user.full_name} est l'administrateur du groupe : désignez-en un autre avant de "
+            "le supprimer.",
+            "error",
+        )
     audit.record(
         db,
         "user_deleted",

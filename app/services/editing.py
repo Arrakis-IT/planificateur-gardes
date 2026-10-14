@@ -22,6 +22,7 @@ from app.repositories import drafts as drafts_repo
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
 from app.services import audit
+from app.services.locks import MonthLockedError, ensure_unlocked, is_locked, locked_months
 from app.services.scheduler import UNASSIGNED
 
 
@@ -101,6 +102,7 @@ async def set_cell_doctor(
     db: AsyncSession, clinic_id: uuid.UUID, day: date, code: str, actor: User
 ) -> Cell:
     """Put a doctor (by code) or nobody ("XX") on a day, in the draft."""
+    await ensure_unlocked(db, clinic_id, day)
     cell = await get_cell(db, clinic_id, day)
     user_id: uuid.UUID | None = None
     if code != UNASSIGNED:
@@ -116,6 +118,7 @@ async def toggle_cell_onsite(
     db: AsyncSession, clinic_id: uuid.UUID, day: date, actor: User
 ) -> Cell:
     """Remove / restore the on-site mark of a day in the results only (draft)."""
+    await ensure_unlocked(db, clinic_id, day)
     cell = await get_cell(db, clinic_id, day)
     if day not in await repo.list_onsite_days(db, clinic_id, day, day):
         raise NotOnsiteError
@@ -174,6 +177,12 @@ async def save_draft(
         await drafts_repo.clear_drafts(db, clinic_id)
         return SaveResult(None, 0)
     drafts = await drafts_repo.drafts_by_date(db, clinic_id, generation.id)
+    if drafts:
+        # A month may have been locked after these cells were drafted.
+        locked = await locked_months(db, clinic_id, min(drafts), max(drafts))
+        blocked = sorted(d for d in drafts if is_locked(d, locked))
+        if blocked:
+            raise MonthLockedError(blocked[0].replace(day=1))
     assignments = await _assignments_for(db, generation.id, list(drafts))
     codes = {u.id: u.doctor_code for u in (await repo.users_by_id(db, clinic_id)).values()}
     now = datetime.now(UTC)

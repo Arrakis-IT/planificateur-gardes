@@ -29,7 +29,8 @@
         <td><span class="code" style="--doctor-color: {{ u.color }}">{{ u.doctor_code }}</span></td>
         <td><a href="/admin/users/{{ u.id }}">{{ u.full_name }}</a></td>
         <td>{{ u.email }}</td>
-        <td>{% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}</td>
+        <td>{% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}
+          {% if u.is_group_admin %}<span class="badge admin-badge">Admin du groupe</span>{% endif %}</td>
         <td class="actions">{% include "admin/_impersonate_button.html" %}</td>
       </tr>
     {% else %}
@@ -37,5 +38,27 @@
     {% endfor %}
     </tbody>
   </table>
+
+  <h2>Administrateur du groupe</h2>
+  {% set eligible = users|selectattr("active")|list %}
+  {% if eligible %}
+  <form method="post" action="/admin/clinic/{{ clinic.id }}/group-admin" class="row">
+    {{ csrf_input(request) }}
+    <div class="grow">
+      <label for="group-admin">Peut verrouiller et déverrouiller les mois du groupe</label>
+      <select id="group-admin" name="user_id">
+        {% if not users|selectattr("is_group_admin")|list %}<option value="" disabled selected>— Aucun —</option>{% endif %}
+        {% for u in eligible %}
+          <option value="{{ u.id }}" {{ 'selected' if u.is_group_admin }}>{{ u.full_name }} ({{ u.doctor_code }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">Désigner</button>
+  </form>
+  {% else %}
+  <p class="muted">Aucun médecin actif dans ce groupe.</p>
+  {% endif %}
+
+  {% include "partials/_month_locks.html" %}
 </section>
 {% endblock %}

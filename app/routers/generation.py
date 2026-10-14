@@ -19,6 +19,7 @@ from app.repositories import users as users_repo
 from app.routers.sse import present_user
 from app.schemas.forms import GenerateForm
 from app.services import calendar as cal
+from app.services.locks import locked_months, months_label
 from app.services.mail import MailSender, get_mail_sender
 from app.services.notifications import send_schedule_notification
 from app.services.pdf import build_schedule_pdf, pdf_filename
@@ -31,6 +32,13 @@ router = APIRouter(tags=["generation"])
 NO_ACTIVE_PLANNING = "Aucune planification active."
 
 
+def locked_warning(locked: set[date] | frozenset[date]) -> str | None:
+    """Notice shown when the period meets locked months (their days are kept)."""
+    if not locked:
+        return None
+    return f"Les mois verrouillés ({months_label(set(locked))}) ne seront pas modifiés."
+
+
 async def _doctors_context(
     db: DbSession, clinic_id: uuid.UUID, period_from: date, period_to: date
 ) -> dict[str, Any]:
@@ -39,7 +47,9 @@ async def _doctors_context(
     counts = await repo.vacation_counts(db, clinic_id, period_from, period_to) if valid else {}
     onsite = await repo.list_onsite_days(db, clinic_id, period_from, period_to) if valid else set()
     doctors = await users_repo.list_clinic_users(db, clinic_id)
+    locked = await locked_months(db, clinic_id, period_from, period_to) if valid else set()
     return {
+        "locked_warning": locked_warning(locked),
         "doctors": [(d, counts.get(d.id, 0)) for d in doctors],
         "onsite_count": len(onsite),
         "period_days": (period_to - period_from).days + 1 if valid else 0,
@@ -140,7 +150,9 @@ async def generate(
         previous_generation_id=run.previous_id,
     )
     response = RedirectResponse("/resultats", status_code=303)
-    set_flash(response, "Planification générée. Le PDF est envoyé par e-mail à tous les médecins.")
+    message = "Planification générée. Le PDF est envoyé par e-mail à tous les médecins."
+    warning = locked_warning(run.locked_months)
+    set_flash(response, f"{message} {warning}" if warning else message)
     return response
 
 
@@ -184,6 +196,9 @@ async def results(
             "today": cal.today_local(),
             "draft_count": draft_count,
             "return_to": return_to,
+            "locked_months": await locked_months(
+                db, clinic_id, generation.period_from, generation.period_to
+            ),
         },
     )
 

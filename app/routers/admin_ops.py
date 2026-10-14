@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Superadmin operations: impersonation, read-only clinic view, custom holidays,
-generations, audit log viewer and platform statistics (brief §4.3)."""
+"""Superadmin operations: impersonation, read-only clinic view, group admin and month locks,
+custom holidays, generations, audit log viewer and platform statistics (brief §4.3)."""
 
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
@@ -20,11 +20,13 @@ from app.repositories import admin as admin_repo
 from app.repositories import clinics as clinics_repo
 from app.repositories import drafts as drafts_repo
 from app.repositories import users as users_repo
-from app.schemas.forms import CustomHolidayForm, ReauthForm
+from app.schemas.forms import CustomHolidayForm, GroupAdminForm, MonthLockForm, ReauthForm
 from app.services import audit
 from app.services import calendar as cal
 from app.services.auth import is_user_allowed
+from app.services.group_admin import GroupAdminError, set_group_admin
 from app.services.holidays import lu_public_holidays
+from app.services.locks import LockError, apply_lock_form, lock_rows
 from app.services.presence import hub
 from app.services.security import verify_password
 from app.templating import render, set_flash
@@ -113,8 +115,67 @@ async def clinic_overview(
         select(Generation).where(Generation.clinic_id == clinic.id, Generation.is_active.is_(True))
     )
     return render(
-        request, "admin/clinic.html", {"clinic": clinic, "users": users, "active": active}
+        request,
+        "admin/clinic.html",
+        {
+            "clinic": clinic,
+            "users": users,
+            "active": active,
+            "lock_rows": await lock_rows(db, clinic.id, cal.today_local()),
+            "lock_action": f"/admin/clinic/{clinic.id}/verrous",
+        },
     )
+
+
+@router.post("/clinic/{clinic_id}/group-admin")
+async def clinic_group_admin(
+    request: Request,
+    clinic_id: uuid.UUID,
+    form: Annotated[GroupAdminForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+) -> Response:
+    """Hand the group admin role to another user of the clinic."""
+    clinic = await _clinic_or_404(db, clinic_id)
+    page = f"/admin/clinic/{clinic.id}"
+    user = await users_repo.get_user_in_clinic(db, clinic.id, form.user_id)
+    if user is None:
+        return _redirect(page, "Utilisateur introuvable dans ce groupe.", "error")
+    try:
+        changed = await set_group_admin(
+            db, clinic.id, user, actor_id=auth.real_user.id, request=request
+        )
+    except GroupAdminError as exc:
+        return _redirect(page, str(exc), "error")
+    await db.commit()
+    return _redirect(page, f"{user.full_name} est l'administrateur du groupe." if changed else None)
+
+
+@router.post("/clinic/{clinic_id}/verrous")
+async def clinic_month_lock(
+    request: Request,
+    clinic_id: uuid.UUID,
+    form: Annotated[MonthLockForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+) -> Response:
+    """Lock / unlock a month of any clinic (same rules as the group admin)."""
+    clinic = await _clinic_or_404(db, clinic_id)
+    page = f"/admin/clinic/{clinic.id}"
+    try:
+        message = await apply_lock_form(
+            db,
+            clinic.id,
+            form.month,
+            form.action,
+            cal.today_local(),
+            actor_id=auth.real_user.id,
+            request=request,
+        )
+    except LockError as exc:
+        return _redirect(page, str(exc), "error")
+    await db.commit()
+    return _redirect(page, message)
 
 
 @router.post("/clinic/{clinic_id}/view")

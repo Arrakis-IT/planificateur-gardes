@@ -50,6 +50,7 @@
         <td>
           {% if u.active %}<span class="badge ok">Actif</span>{% else %}<span class="badge">Inactif</span>{% endif %}
           {% if u.must_change_password %}<span class="badge warn">MDP à changer</span>{% endif %}
+          {% if u.is_group_admin %}<span class="badge admin-badge">Admin du groupe</span>{% endif %}
         </td>
         <td class="actions">
           {% include "admin/_impersonate_button.html" %}

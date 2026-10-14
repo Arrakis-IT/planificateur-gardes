@@ -23,6 +23,7 @@ from app.repositories import scheduling as repo
 from app.schemas.forms import DayForm, RangeForm
 from app.services import audit
 from app.services import calendar as cal
+from app.services.locks import ensure_unlocked, locked_months
 from app.services.planning import public_holidays
 from app.templating import render, set_flash
 
@@ -52,6 +53,7 @@ async def _calendar_context(
         "months": cal.months_between(period.start, period.end),
         "marked": marked,
         "public_holidays": await public_holidays(db, clinic_id, period.start, period.end),
+        "locked_months": await locked_months(db, clinic_id, period.start, period.end),
     }
 
 
@@ -88,6 +90,7 @@ async def vacation_toggle(
     db: DbSession,
 ) -> Response:
     """Add / remove one vacation day of the current user."""
+    await ensure_unlocked(db, clinic_id, form.date)
     added = await repo.toggle_user_vacation(db, clinic_id, auth.user.id, form.date)
     audit.record(
         db,
@@ -121,6 +124,7 @@ async def vacation_range(
         response = RedirectResponse(target, status_code=303)
         set_flash(response, "La date de début doit précéder la date de fin.", "error")
         return response
+    await ensure_unlocked(db, clinic_id, form.start, form.end)
     if form.action == "remove":
         count = await repo.remove_user_vacation_range(
             db, clinic_id, auth.user.id, form.start, form.end
@@ -180,6 +184,7 @@ async def onsite_toggle(
     db: DbSession,
 ) -> Response:
     """Mark / unmark one on-site day for the clinic."""
+    await ensure_unlocked(db, clinic_id, form.date)
     added = await repo.toggle_onsite_day(db, clinic_id, form.date, auth.user.id)
     audit.record(
         db,

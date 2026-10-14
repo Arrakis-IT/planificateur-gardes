@@ -213,6 +213,13 @@ details[open] { display: block; margin-top: 6px; }
 .badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge.onsite-badge { background: var(--onsite-soft); color: #7a5c00; border: 1px solid var(--onsite); }
 .badge.holiday-badge { background: var(--holiday); color: var(--ink); }
+.badge.lock-badge { background: var(--line); color: var(--ink); text-transform: none; }
+.badge.admin-badge { background: var(--accent-soft); color: var(--accent); }
+/* Locked months: read-only, hatched. */
+.cal-day.locked, .month-cell.locked-cell {
+  cursor: not-allowed;
+  background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(0, 0, 0, 0.05) 6px 12px);
+}
 .code.xx { background: var(--err); }
 
 /* --- Dashboard ------------------------------------------------------------ */
@@ -314,7 +321,7 @@ details[open] { display: block; margin-top: 6px; }
 }
 button.cal-day { cursor: pointer; transition: all 0.1s; }
 .cal-day.in-range { background: var(--surface); border-color: var(--line); }
-.cal-day.in-range:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+button.cal-day.in-range:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
 .cal-day.out-range { color: var(--ink-faint); }
 .cal-day.weekend.in-range { background: var(--weekend); }
 .cal-day.holiday { background: var(--holiday) !important; border-color: var(--ink-soft); }

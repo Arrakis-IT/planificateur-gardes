@@ -38,6 +38,7 @@ from app.routers import (
 )
 from app.routers import app as app_router
 from app.services.bootstrap import ensure_initial_superadmin
+from app.services.locks import MonthLockedError
 from app.services.presence import hub
 from app.templating import render
 from app.utils.logging import configure_logging
@@ -78,6 +79,10 @@ def _register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(NoClinicScopeError)
     async def handle_no_scope(_request: Request, _exc: NoClinicScopeError) -> Response:
         return RedirectResponse("/admin", status_code=303)
+
+    @app.exception_handler(MonthLockedError)
+    async def handle_month_locked(request: Request, exc: MonthLockedError) -> Response:
+        return _error_page(request, 403, str(exc))
 
     @app.exception_handler(StarletteHTTPException)
     async def handle_http(request: Request, exc: StarletteHTTPException) -> Response:

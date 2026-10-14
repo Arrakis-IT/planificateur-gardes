@@ -4,7 +4,7 @@
     {{ csrf_input(request) }}
     <input type="hidden" name="debut" value="{{ debut }}">
     <div class="multi-month">
-      {% for first in months %}{{ m.mini_month(first, period, marked, public_holidays, 'onsite') }}{% endfor %}
+      {% for first in months %}{{ m.mini_month(first, period, marked, public_holidays, 'onsite', first in locked_months) }}{% endfor %}
     </div>
   </form>
   <div class="holiday-summary">{{ marked|length }} jour{{ 's' if marked|length > 1 }} sur place sur cette période.</div>
