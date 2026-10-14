@@ -36,6 +36,9 @@ async def test_legal_notice_publisher_and_host(client, db):
         "Hetzner Online GmbH",
         "Industriestr. 25, 91710 Gunzenhausen, Allemagne",
         "https://www.hetzner.com",
+        "RCS Luxembourg</dt><dd>A45540",
+        "TVA intracommunautaire</dt><dd>LU36093439",
+        "RCS Luxembourg A45540 — TVA LU36093439",
     ):
         assert expected in text, expected
 
