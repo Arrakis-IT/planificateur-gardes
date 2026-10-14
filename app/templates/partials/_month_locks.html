@@ -1,6 +1,10 @@
-{# Month locks list (settings of the group admin, admin clinic sheet). Needs lock_rows, lock_action. #}
+{# Month locks list (settings of the group admin, admin clinic sheet): months of the active
+   generation, plus any locked month. Needs lock_rows, lock_action; optional lock_error. #}
+<section id="month-locks">
 <h2>Verrouillage des mois</h2>
-<p class="muted small">Un mois verrouillé ne peut plus être modifié par personne (affectations, congés, jours sur place) jusqu'à son déverrouillage. Une nouvelle génération conserve ses affectations.</p>
+<p class="muted small">Seuls les mois de la planification active peuvent être verrouillés. Un mois verrouillé ne peut plus être modifié par personne (affectations, congés, jours sur place) jusqu'à son déverrouillage. Une nouvelle génération conserve ses affectations et retire les verrous des mois situés hors de sa période.</p>
+{% if lock_error %}<div class="alert alert-error" role="alert">{{ lock_error }}</div>{% endif %}
+{% if not lock_rows %}<p class="muted">Aucune planification active : aucun mois à verrouiller.</p>{% endif %}
 <table class="table month-locks">
   <tbody>
   {% for row in lock_rows %}
@@ -24,3 +28,4 @@
   {% endfor %}
   </tbody>
 </table>
+</section>

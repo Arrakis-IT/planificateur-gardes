@@ -59,7 +59,10 @@ async def settings_page(request: Request, auth: CurrentAuth, db: DbSession) -> R
     return render(request, "account/settings.html", await _settings_context(auth, db))
 
 
-@router.post("/parametres/verrous", responses={403: {"description": LOCKS_FORBIDDEN}})
+@router.post(
+    "/parametres/verrous",
+    responses={400: {"description": "Invalid month"}, 403: {"description": LOCKS_FORBIDDEN}},
+)
 async def month_lock(
     request: Request, form: Annotated[MonthLockForm, Form()], auth: CurrentAuth, db: DbSession
 ) -> Response:
@@ -79,8 +82,8 @@ async def month_lock(
             request=request,
         )
     except LockError as exc:
-        set_flash(response, str(exc), "error")
-        return response
+        context = await _settings_context(auth, db) | {"lock_error": str(exc)}
+        return render(request, "account/settings.html", context, 400)
     await db.commit()
     set_flash(response, message)
     return response

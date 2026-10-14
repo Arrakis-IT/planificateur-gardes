@@ -6,8 +6,9 @@
 While a month is locked, nobody — the group admin included, until they unlock it — can
 change its assignments, vacations or on-site days (`MonthLockedError` → 403). A
 regeneration keeps the current assignments of locked days and the changelog email skips
-them. Only the current and future months can be locked; any locked month can be unlocked.
-Each lock / unlock is audited (`month_locked` / `month_unlocked`).
+them. Only current and future months covered by the active generation can be locked; any
+locked month can be unlocked, and a regeneration releases the locks of months left outside
+its period. Each lock / unlock is audited (`month_locked` / `month_unlocked`).
 """
 
 import uuid
@@ -20,13 +21,15 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import MonthLock
+from app.repositories import scheduling as scheduling_repo
 from app.services import audit
-from app.services.calendar import add_months, month_key, month_label
+from app.services.calendar import Period, add_months, month_key, month_label, months_between
 
 if TYPE_CHECKING:
     from app.dependencies import AuthContext
 
-LOCKABLE_MONTHS_AHEAD = 12  # rows offered in the settings list (current month included)
+OUT_OF_RANGE = "Mois en dehors de la planification active, impossible à verrouiller."
+REGENERATION_OUT_OF_RANGE = "regeneration_out_of_range"
 
 
 class MonthLockedError(Exception):
@@ -80,13 +83,24 @@ def months_label(months: set[date]) -> str:
     return ", ".join(month_label(m) for m in sorted(months))
 
 
+async def active_period(db: AsyncSession, clinic_id: uuid.UUID) -> Period | None:
+    """Period of the clinic's active generation, if any."""
+    generation = await scheduling_repo.get_active_generation(db, clinic_id)
+    return Period(generation.period_from, generation.period_to) if generation else None
+
+
+def covers(period: Period | None, month: date) -> bool:
+    """Does `period` meet the month starting on `month` (partially or totally)?"""
+    return period is not None and month <= period.end and add_months(month, 1) > period.start
+
+
 @dataclass(frozen=True)
 class LockRow:
     """One month of the settings list."""
 
     month: date
     locked: bool
-    lockable: bool  # current or future month
+    lockable: bool  # current or future month of the active generation
 
     @property
     def key(self) -> str:
@@ -95,11 +109,14 @@ class LockRow:
 
 
 async def lock_rows(db: AsyncSession, clinic_id: uuid.UUID, today: date) -> list[LockRow]:
-    """Current month + the next ones, plus any (older) locked month, by date."""
+    """Current and future months of the active generation, plus any locked month (so that
+    it can always be unlocked), by date. Empty without an active generation and locks."""
     current = today.replace(day=1)
     locked = await locked_months(db, clinic_id)
-    months = {add_months(current, i) for i in range(LOCKABLE_MONTHS_AHEAD)} | locked
-    return [LockRow(m, m in locked, m >= current) for m in sorted(months)]
+    period = await active_period(db, clinic_id)
+    covered = set(months_between(period.start, period.end)) if period else set()
+    months = {m for m in covered if m >= current} | locked
+    return [LockRow(m, m in locked, m >= current and m in covered) for m in sorted(months)]
 
 
 async def lock_month(
@@ -115,6 +132,8 @@ async def lock_month(
     month = month.replace(day=1)
     if month < today.replace(day=1):
         raise LockError("Seuls le mois en cours et les mois à venir peuvent être verrouillés.")
+    if not covers(await active_period(db, clinic_id), month):
+        raise LockError(OUT_OF_RANGE)
     if month in await locked_months(db, clinic_id, month, month):
         return False
     db.add(MonthLock(clinic_id=clinic_id, month=month, locked_by=actor_id))
@@ -182,3 +201,32 @@ async def unlock_month(
         meta={"month": month_key(month)},
     )
     return True
+
+
+async def release_locks_outside(
+    db: AsyncSession,
+    clinic_id: uuid.UUID,
+    period: Period,
+    *,
+    actor_id: uuid.UUID,
+    request: Request | None = None,
+) -> set[date]:
+    """Unlock the months a new generation leaves outside its period (audited with the reason
+    "regeneration_out_of_range"). Returns those months. Caller commits."""
+    released = {m for m in await locked_months(db, clinic_id) if not covers(period, m)}
+    if not released:
+        return released
+    await db.execute(
+        delete(MonthLock).where(MonthLock.clinic_id == clinic_id, MonthLock.month.in_(released))
+    )
+    for month in sorted(released):
+        audit.record(
+            db,
+            "month_unlocked",
+            request=request,
+            user_id=actor_id,
+            clinic_id=clinic_id,
+            target_type="month",
+            meta={"month": month_key(month), "reason": REGENERATION_OUT_OF_RANGE},
+        )
+    return released

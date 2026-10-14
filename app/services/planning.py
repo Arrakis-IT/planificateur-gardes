@@ -16,8 +16,9 @@ from app.repositories import drafts as drafts_repo
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
 from app.services import audit
+from app.services.calendar import Period
 from app.services.holidays import holidays_between
-from app.services.locks import is_locked, locked_months
+from app.services.locks import is_locked, locked_months, release_locks_outside
 from app.services.scheduler import (
     UNASSIGNED,
     Doctor,
@@ -127,6 +128,7 @@ class GenerationRun:
     generation: Generation
     previous_id: uuid.UUID | None
     locked_months: frozenset[date] = frozenset()  # kept as they were (first days)
+    released_months: frozenset[date] = frozenset()  # locks dropped: outside the new period
 
 
 def validate_period(period_from: date, period_to: date) -> None:
@@ -149,6 +151,7 @@ async def run_generation(
 
     Days of locked months keep the active generation's assignment (doctor and on-site
     removal); a locked day the active generation did not cover takes the scheduler's choice.
+    Locks of months outside the new period are released.
     """
     validate_period(period_from, period_to)
     await repo.lock_clinic(db, clinic_id)
@@ -193,6 +196,9 @@ async def run_generation(
         db, clinic_id, period_from, period_to, actor.id, assignments, onsite_removed
     )
     await repo.snapshot_onsite(db, clinic_id, generation.id)
+    released = await release_locks_outside(
+        db, clinic_id, Period(period_from, period_to), actor_id=actor.id, request=request
+    )
     audit.record(
         db,
         "generation_created",
@@ -210,7 +216,7 @@ async def run_generation(
             "archived_generation": str(previous_id) if previous_id else None,
         },
     )
-    return GenerationRun(generation, previous_id, frozenset(locked))
+    return GenerationRun(generation, previous_id, frozenset(locked), frozenset(released))
 
 
 # --- Results statistics -----------------------------------------------------------------------

@@ -6,7 +6,7 @@ custom holidays, generations, audit log viewer and platform statistics (brief §
 
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -109,22 +109,28 @@ async def clinic_overview(
     request: Request, clinic_id: uuid.UUID, db: DbSession, auth: SuperadminAuth
 ) -> Response:
     """Clinic sheet: users (impersonate), read-only view, holidays, generations."""
-    clinic = await _clinic_or_404(db, clinic_id)
+    return await _clinic_page(request, db, await _clinic_or_404(db, clinic_id))
+
+
+async def _clinic_page(
+    request: Request,
+    db: DbSession,
+    clinic: Clinic,
+    extra: dict[str, Any] | None = None,
+    status_code: int = 200,
+) -> Response:
     users = await users_repo.list_users(db, clinic_id=clinic.id)
     active = await db.scalar(
         select(Generation).where(Generation.clinic_id == clinic.id, Generation.is_active.is_(True))
     )
-    return render(
-        request,
-        "admin/clinic.html",
-        {
-            "clinic": clinic,
-            "users": users,
-            "active": active,
-            "lock_rows": await lock_rows(db, clinic.id, cal.today_local()),
-            "lock_action": f"/admin/clinic/{clinic.id}/verrous",
-        },
-    )
+    context = {
+        "clinic": clinic,
+        "users": users,
+        "active": active,
+        "lock_rows": await lock_rows(db, clinic.id, cal.today_local()),
+        "lock_action": f"/admin/clinic/{clinic.id}/verrous",
+    }
+    return render(request, "admin/clinic.html", context | (extra or {}), status_code)
 
 
 @router.post("/clinic/{clinic_id}/group-admin")
@@ -173,7 +179,7 @@ async def clinic_month_lock(
             request=request,
         )
     except LockError as exc:
-        return _redirect(page, str(exc), "error")
+        return await _clinic_page(request, db, clinic, {"lock_error": str(exc)}, 400)
     await db.commit()
     return _redirect(page, message)
 

@@ -151,8 +151,11 @@ async def generate(
     )
     response = RedirectResponse("/resultats", status_code=303)
     message = "Planification générée. Le PDF est envoyé par e-mail à tous les médecins."
-    warning = locked_warning(run.locked_months)
-    set_flash(response, f"{message} {warning}" if warning else message)
+    notices = [message, locked_warning(run.locked_months)]
+    if run.released_months:
+        released = months_label(set(run.released_months))
+        notices.append(f"Verrouillage retiré (hors de la nouvelle période) : {released}.")
+    set_flash(response, " ".join(n for n in notices if n))
     return response
 
 

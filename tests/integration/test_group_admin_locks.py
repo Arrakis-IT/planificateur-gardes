@@ -11,6 +11,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
 from app.models import Assignment, AuditLog, Generation, Holiday, MonthLock, OnsiteDay, User
+from app.repositories import scheduling as scheduling_repo
+from app.services.locks import OUT_OF_RANGE
 from app.services.scheduler import UNASSIGNED, ScheduleRequest
 from tests.conftest import TEST_CSRF_COOKIE, login, post_form, with_csrf
 
@@ -25,14 +27,24 @@ def _today(monkeypatch):
     monkeypatch.setattr("app.services.calendar.today_local", lambda now=None: TODAY)
 
 
+async def _active_generation(db, clinic, user, start: date, end: date) -> None:
+    """Store an active generation (every day to `user`), archiving the previous one."""
+    await scheduling_repo.archive_active_generation(db, clinic.id)
+    days = {start + timedelta(days=i): user.id for i in range((end - start).days + 1)}
+    await scheduling_repo.create_generation(db, clinic.id, start, end, user.id, days)
+    await db.commit()
+
+
 @pytest.fixture
 async def team(client, db, make_clinic, make_user):
-    """Clinic with its group admin (logged in) and a second doctor."""
+    """Clinic with its group admin (logged in), a second doctor and an active generation
+    from October 2026 to June 2027 (months can only be locked inside it)."""
     clinic = await make_clinic("Groupe CRT")
     admin = await make_user("admin-doc@ex.lu", "Dr. Jean Dupont", clinic=clinic)
     admin.is_group_admin = True
     doctor = await make_user("doc@ex.lu", "Dr. Marie Richard", clinic=clinic)
     await db.commit()
+    await _active_generation(db, clinic, admin, date(2026, 10, 1), date(2027, 6, 30))
     await login(client, "admin-doc@ex.lu")
     return clinic, admin, doctor
 
@@ -165,7 +177,7 @@ async def test_group_admin_locks_and_unlocks_with_audit(client, db, team):
 async def test_past_months_cannot_be_locked(client, db, team):
     clinic, _, _ = team
     response = await _lock(client, "2026-09")
-    assert "mois à venir" in (await client.get(response.headers["location"])).text
+    assert response.status_code == 400 and "mois à venir" in response.text
     assert await _locked(db, clinic) == set()
     assert (await _lock(client, "2026-10")).status_code == 303  # current month is fine
     assert await _locked(db, clinic) == {date(2026, 10, 1)}
@@ -186,6 +198,56 @@ async def test_only_the_group_admin_manages_locks(client, db, team, app, make_us
         assert response.status_code == 303
         assert "Verrouillage des mois" in (await root.get(f"/admin/clinic/{clinic.id}")).text
     assert await _locked(db, clinic) == {date(2027, 5, 1)}
+
+
+async def test_lock_refused_outside_the_active_generation(client, db, team):
+    clinic, _, _ = team
+    response = await _lock(client, "2027-07")  # after the active generation
+    assert response.status_code == 400 and OUT_OF_RANGE in response.text
+    assert await _locked(db, clinic) == set()
+
+    await scheduling_repo.archive_active_generation(db, clinic.id)
+    await db.commit()
+    response = await _lock(client, "2027-01")  # no active generation at all
+    assert response.status_code == 400 and OUT_OF_RANGE in response.text
+    assert "Aucune planification active" in response.text
+    assert await _locked(db, clinic) == set()
+
+
+async def test_settings_only_list_months_of_the_active_generation(client, db, team):
+    clinic, admin, _ = team
+    # Partially covered months count: 15/11/2026 → 10/01/2027 gives Nov, Dec, Jan.
+    await _active_generation(db, clinic, admin, date(2026, 11, 15), date(2027, 1, 10))
+    page = (await client.get("/parametres")).text
+    shown = [
+        m for m in ("2026-10", "2026-11", "2026-12", "2027-01", "2027-02") if f'value="{m}"' in page
+    ]
+    assert shown == ["2026-11", "2026-12", "2027-01"]
+    # A lock left outside the generation (created before 0.7.0) stays listed to be unlocked.
+    db.add(MonthLock(clinic_id=clinic.id, month=date(2027, 5, 1)))
+    await db.commit()
+    page = (await client.get("/parametres")).text
+    row = page[page.index('value="2027-05"') :][:300]
+    assert 'value="unlock"' in row and 'value="lock"' not in row
+
+
+async def test_regeneration_releases_locks_outside_the_new_period(client, db, team, plan):
+    clinic, admin, _ = team
+    await _lock(client, "2026-12")
+    await _lock(client, "2027-03")
+    response = await _generate(client, "2027-01-01", "2027-06-30")
+    assert response.status_code == 303
+    assert await _locked(db, clinic) == {date(2027, 3, 1)}
+    flash = (await client.get("/resultats")).text
+    assert "Verrouillage retiré (hors de la nouvelle période) : décembre 2026." in flash
+    entry = await db.scalar(
+        select(AuditLog).where(
+            AuditLog.action == "month_unlocked",
+            AuditLog.meta["reason"].astext == "regeneration_out_of_range",
+        )
+    )
+    assert entry is not None
+    assert entry.meta["month"] == "2026-12" and entry.user_id == admin.id
 
 
 # --- 403 on changes in a locked month ---------------------------------------------------------
