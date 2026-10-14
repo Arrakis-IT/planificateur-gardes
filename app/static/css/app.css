@@ -406,6 +406,7 @@ pre.json {
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 16px; }
 .facts dt { color: var(--ink-soft); }
 .facts dd { margin: 0; }
+.sheet-actions { margin-bottom: 24px; }
 .inline-pager { display: inline-flex; gap: 6px; margin-left: 12px; font-size: 13px; vertical-align: middle; }
 .reauth { margin-top: 8px; max-width: 260px; }
 
