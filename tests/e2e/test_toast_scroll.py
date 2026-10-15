@@ -41,7 +41,10 @@ def test_lock_toast_keeps_scroll_position():
         page.goto(f"{BASE_URL}/parametres")
         page.wait_for_load_state("load")
         page.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)")
-        page.wait_for_function("window.scrollY > 0")
+        for _ in range(20):  # wait_for_function(str) is eval: blocked by the app's CSP
+            if page.evaluate("window.scrollY") > 0:
+                break
+            page.wait_for_timeout(100)
         before = page.evaluate("window.scrollY")
         assert before > 0, "the settings page must be scrollable for this check"
 

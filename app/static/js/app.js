@@ -75,6 +75,28 @@
     showToast(detail.message, detail.level);
   });
 
+  // --- Failed HTMX requests ------------------------------------------------------------
+  // An HTMX request that fails (HTTP error, network error, or an interstitial / challenge
+  // from the CDN in front of the app) used to fail silently: the modal simply never
+  // appeared. A failed GET from a link falls back to a normal navigation to its href (the
+  // server renders the same content as a full page); anything else shows an error toast,
+  // unless the server already sent its own toast.
+  function onHtmxFailure(event) {
+    var detail = event.detail || {};
+    var elt = detail.elt;
+    var xhr = detail.xhr;
+    var verb = ((detail.requestConfig || {}).verb || "").toLowerCase();
+    if (xhr && /"toast"/.test(xhr.getResponseHeader("HX-Trigger") || "")) return;
+    if (elt && elt.tagName === "A" && elt.href && verb === "get") {
+      window.location.assign(elt.href);
+      return;
+    }
+    var status = xhr && xhr.status ? " (erreur " + xhr.status + ")" : "";
+    showToast("La requête a échoué" + status + ". Réessayez ou rechargez la page.", "error");
+  }
+  document.body.addEventListener("htmx:responseError", onHtmxFailure);
+  document.body.addEventListener("htmx:sendError", onHtmxFailure);
+
   // Cells of locked months are inert buttons: say why instead of doing nothing on tap.
   document.addEventListener("click", function (event) {
     var cell = event.target instanceof Element && event.target.closest("[data-locked-message]");

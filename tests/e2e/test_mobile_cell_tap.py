@@ -50,22 +50,48 @@ def _tap(page, locator) -> None:
     page.touchscreen.tap(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
 
 
-@pytest.mark.parametrize("engine", ["chromium", "webkit"])
-def test_tap_on_a_day_opens_the_edit_modal(engine):
+@pytest.fixture(scope="module")
+def session_state(tmp_path_factory):
+    """Log in once for the module (the login is rate limited per IP) and reuse the cookies."""
+    path = tmp_path_factory.mktemp("e2e") / "state.json"
     with sync_api.sync_playwright() as p:
-        browser = _launch(p, engine)
-        context = browser.new_context(
-            viewport={"width": 375, "height": 812},
-            has_touch=True,
-            is_mobile=engine == "chromium",  # WebKit does not support is_mobile
-            user_agent=IPHONE_UA,
-        )
-        page = context.new_page()
+        browser = _launch(p, "chromium")
+        page = browser.new_page()
         page.goto(f"{BASE_URL}/login")
         page.fill("#email", EMAIL)
         page.fill("#password", PASSWORD)
         with page.expect_navigation():
-            page.tap("button[type=submit]")
+            page.click("button[type=submit]")
+        assert "/login" not in page.url, "login failed (rate limited? wait a minute)"
+        page.context.storage_state(path=str(path))
+        browser.close()
+    return str(path)
+
+
+def _mobile_page(p, engine: str, state: str):
+    browser = _launch(p, engine)
+    context = browser.new_context(
+        viewport={"width": 375, "height": 812},
+        has_touch=True,
+        is_mobile=engine == "chromium",  # WebKit does not support is_mobile
+        user_agent=IPHONE_UA,
+        # The PWA service worker would hide requests from page.route() (WebKit).
+        service_workers="block",
+        storage_state=state,
+    )
+    page = context.new_page()
+    violations: list[str] = []
+    page.on(
+        "console",
+        lambda m: violations.append(m.text) if "Content Security Policy" in m.text else None,
+    )
+    return browser, page, violations
+
+
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_tap_on_a_day_opens_the_edit_modal(engine, session_state):
+    with sync_api.sync_playwright() as p:
+        browser, page, violations = _mobile_page(p, engine, session_state)
 
         page.goto(f"{BASE_URL}/resultats")
         _tap(page, page.locator("a.month-cell.clickable").first)
@@ -81,4 +107,29 @@ def test_tap_on_a_day_opens_the_edit_modal(engine):
             toast.wait_for(timeout=3000)
             assert "aucune modification possible" in toast.inner_text()
             assert not page.inner_html("#modal").strip()  # no edit modal for a locked day
+        assert violations == []  # no CSP violation from the app's own pages
+        browser.close()
+
+
+@pytest.mark.parametrize("engine", ["chromium", "webkit"])
+def test_failed_modal_request_falls_back_to_the_full_page(engine, session_state):
+    """If the HTMX request fails (e.g. a CDN challenge answers 403), the tap still leads to
+    the day's edit page instead of doing nothing."""
+    with sync_api.sync_playwright() as p:
+        browser, page, _ = _mobile_page(p, engine, session_state)
+        page.goto(f"{BASE_URL}/resultats")
+
+        def challenge(route):
+            if route.request.headers.get("hx-request") == "true":
+                route.fulfill(status=403, body="challenge", content_type="text/html")
+            else:
+                route.continue_()
+
+        page.route("**/resultats/jour/**", challenge)
+        cell = page.locator("a.month-cell.clickable").first
+        href = cell.get_attribute("href")
+        with page.expect_navigation(timeout=5000):
+            _tap(page, cell)
+        assert page.url.endswith(href)
+        assert page.get_by_text("Modifier l'affectation").first.is_visible()
         browser.close()

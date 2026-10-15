@@ -171,6 +171,8 @@ def test_no_inline_scripts_or_handlers_in_templates():
             offenders.append(f"{relative}: <style> block")
         if "javascript:" in text.lower():
             offenders.append(f"{relative}: javascript: URL")
+        if re.search(r"\shx-on(:|-|=)", text):  # htmx inline handlers (eval-like, CSP-blocked)
+            offenders.append(f"{relative}: hx-on handler")
     assert offenders == []
 
 

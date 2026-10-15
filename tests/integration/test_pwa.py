@@ -133,3 +133,30 @@ async def test_page_loads_the_toast_component(client):
     assert 'addEventListener("toast"' in script.text and "function showToast" in script.text
     css = (await client.get(static_url("css/app.css"))).text
     assert ".toasts {" in css and "@keyframes toast-out" in css
+
+
+@pytest.mark.db
+async def test_day_cells_use_htmx_and_the_static_script(client, db, make_clinic, make_user):
+    """Résultats cells open the modal through HTMX attributes handled by the versioned
+    /static/ scripts: no inline JavaScript involved (script-src 'self')."""
+    from datetime import date, timedelta
+
+    from app.repositories import scheduling as scheduling_repo
+
+    clinic = await make_clinic()
+    user = await make_user("nr@ex.lu", clinic=clinic)
+    start = date(2027, 4, 1)
+    days = {start + timedelta(days=i): user.id for i in range(30)}
+    await scheduling_repo.create_generation(
+        db, clinic.id, start, start + timedelta(days=29), user.id, days
+    )
+    await db.commit()
+    await login(client, "nr@ex.lu")
+    page = (await client.get("/resultats")).text
+    assert f'<script src="{static_url("js/htmx.min.js")}" defer></script>' in page
+    assert f'<script src="{static_url("js/app.js")}" defer></script>' in page
+    assert 'href="/resultats/jour/2027-04-12?retour=/resultats"' in page
+    assert 'hx-get="/resultats/jour/2027-04-12?retour=/resultats" hx-target="#modal"' in page
+    script = (await client.get(static_url("js/app.js"))).text
+    assert "data-close-modal" not in page or "closeModal" in script
+    assert 'addEventListener("htmx:responseError"' in script  # failures fall back / are shown
