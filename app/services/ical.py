@@ -25,11 +25,14 @@ from app.models import User
 from app.repositories import scheduling as repo
 from app.services import audit
 from app.services.auth import is_user_allowed
+from app.services.planning import build_days
 
 PRODID = "-//Arrakis IT Services//Planificateur des gardes//FR"
 UID_DOMAIN = "gardes.arrakis.lu"
 TIMEZONE = "Europe/Luxembourg"
 ICAL_PATH = "/ical"
+SUMMARY = "Garde"
+ONSITE_SUMMARY = "Garde sur place"
 
 
 @dataclass(frozen=True)
@@ -81,7 +84,7 @@ def build_calendar(
             f"DTSTAMP:{dtstamp}",
             f"DTSTART;VALUE=DATE:{duty.day:%Y%m%d}",
             f"DTEND;VALUE=DATE:{duty.day + timedelta(days=1):%Y%m%d}",  # exclusive end
-            f"SUMMARY:{'Garde (sur place)' if duty.onsite else 'Garde'}",
+            f"SUMMARY:{ONSITE_SUMMARY if duty.onsite else SUMMARY}",
             f"DESCRIPTION:{_escape(f'Garde planifiée dans le groupe {clinic_name}.')}",
             "END:VEVENT",
         ]
@@ -106,17 +109,17 @@ async def calendar_for(db: AsyncSession, user: User) -> str:
     stamp = datetime.now(UTC)
     if generation is not None:
         stamp = generation.generated_at
+        # Same day views as the pages and the PDF: on-site = marked in the clinic settings
+        # and not removed in the results (saved values only, no draft).
+        days = await build_days(db, user.clinic_id, generation.period_from, generation.period_to)
+        duties = [
+            Duty(day, view.onsite)
+            for day, view in days.items()
+            if view.doctor is not None and view.doctor.id == user.id
+        ]
         assignments = await repo.active_assignments(
             db, user.clinic_id, generation.period_from, generation.period_to
         )
-        onsite = await repo.list_onsite_days(
-            db, user.clinic_id, generation.period_from, generation.period_to
-        )
-        duties = [
-            Duty(day, day in onsite and not a.onsite_removed)
-            for day, a in assignments.items()
-            if a.user_id == user.id
-        ]
         edits = [a.edited_at for a in assignments.values() if a.edited_at is not None]
         stamp = max([stamp, *edits])
     return build_calendar(user.clinic.name, user.id, duties, stamp)

@@ -104,7 +104,7 @@ async def test_feed_content(client, db, team):
     # All-day events: dates only, exclusive end on the next day.
     assert [e["DTEND;VALUE=DATE"] for e in events] == ["20270402", "20270404", "20270406"]
     assert all("T" not in e["DTSTART;VALUE=DATE"] for e in events)
-    assert [e["SUMMARY"] for e in events] == ["Garde", "Garde (sur place)", "Garde"]
+    assert [e["SUMMARY"] for e in events] == ["Garde", "Garde sur place", "Garde"]
     assert [e["UID"] for e in events] == [
         f"2027-04-0{d}-{nr.id}@gardes.arrakis.lu" for d in (1, 3, 5)
     ]
@@ -188,3 +188,44 @@ def test_feed_token_is_masked_in_the_access_log():
     )  # fmt: skip
     assert QuietPathsFilter().filter(record) is True
     assert "s3cr3t" not in record.getMessage() and "/ical/[token]" in record.getMessage()
+
+
+# --- SUMMARY label (same on-site criterion as the pages and the PDF) ---------------------
+
+
+async def _feed_summaries(client, db, clinic, user, onsite_days: set[date]) -> dict[date, str]:
+    owners = dict.fromkeys(APR, user.id)
+    await scheduling_repo.create_generation(db, clinic.id, APR[0], APR[-1], user.id, owners)
+    db.add_all(OnsiteDay(clinic_id=clinic.id, date=d) for d in onsite_days)
+    await db.commit()
+    token = await _token(client, db, user)
+    events = _events((await client.get(f"/ical/{token}")).text)
+    return {date.fromisoformat(e["UID"][:10]): e["SUMMARY"] for e in events}
+
+
+async def test_summary_plain_duty(client, db, team):
+    clinic, nr, _ = team
+    summaries = await _feed_summaries(client, db, clinic, nr, set())
+    assert set(summaries.values()) == {"Garde"}
+
+
+async def test_summary_onsite_duty(client, db, team):
+    clinic, nr, _ = team
+    summaries = await _feed_summaries(client, db, clinic, nr, set(APR))
+    assert set(summaries.values()) == {"Garde sur place"}
+
+
+async def test_summary_mixed_days_match_the_day_views(client, db, team):
+    from app.services.planning import build_days
+
+    clinic, nr, _ = team
+    summaries = await _feed_summaries(client, db, clinic, nr, {APR[1], APR[3]})
+    assert summaries == {
+        APR[0]: "Garde",
+        APR[1]: "Garde sur place",
+        APR[2]: "Garde",
+        APR[3]: "Garde sur place",
+        APR[4]: "Garde",
+    }
+    views = await build_days(db, clinic.id, APR[0], APR[-1])  # what the pages and PDF show
+    assert all((summaries[d] == "Garde sur place") == views[d].onsite for d in APR)
