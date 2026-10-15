@@ -1,6 +1,6 @@
 [project]
 name = "planificateur-gardes"
-version = "0.10.0"
+version = "0.10.1"
 description = "Multi-tenant on-call duty scheduler for medical clinics."
 authors = [{ name = "Juan Manuel Suárez", email = "info@arrakis.lu" }]
 license = "AGPL-3.0-or-later"
