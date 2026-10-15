@@ -33,6 +33,7 @@ from app.routers import (
     generation,
     health,
     holidays,
+    ical,
     legal,
     pwa,
     sse,
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(pwa.router)
     app.include_router(legal.router)
+    app.include_router(ical.router)
     app.include_router(auth.router)
     app.include_router(account.router)
     app.include_router(admin.router)

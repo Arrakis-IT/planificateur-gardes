@@ -12,10 +12,13 @@ from typing import Any
 NOISY_LOGGERS = ("weasyprint", "fontTools")
 # Uptime monitor pings (every few minutes) are not worth an access log line.
 QUIET_ACCESS_PATHS = frozenset({"/health"})
+# Paths whose last segment is a secret (iCal feed token): masked in the access log.
+SECRET_PATH_PREFIXES = ("/ical/",)
 
 
 class QuietPathsFilter(logging.Filter):
-    """Drop uvicorn access log lines for QUIET_ACCESS_PATHS (query string ignored).
+    """Drop uvicorn access log lines for QUIET_ACCESS_PATHS (query string ignored) and mask
+    the token of SECRET_PATH_PREFIXES paths.
 
     uvicorn's access record args are (client, method, path, http_version, status).
     """
@@ -23,7 +26,12 @@ class QuietPathsFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args
         if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
-            return args[2].split("?", 1)[0] not in QUIET_ACCESS_PATHS
+            path = args[2].split("?", 1)[0]
+            if path in QUIET_ACCESS_PATHS:
+                return False
+            for prefix in SECRET_PATH_PREFIXES:
+                if path.startswith(prefix):
+                    record.args = (*args[:2], f"{prefix}[token]", *args[3:])
         return True
 
 

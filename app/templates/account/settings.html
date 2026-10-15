@@ -31,6 +31,37 @@
     <noscript><button type="submit">Enregistrer</button></noscript>
   </form>
   {% endif %}
+  {% if ical and not forced %}
+  <h2 id="calendrier">Mon calendrier</h2>
+  <p class="muted small">Abonnez votre agenda à vos gardes : il se met à jour tout seul après chaque génération ou modification.</p>
+  {% if ical.url %}
+    <div class="stack">
+      <div>
+        <label for="ical-url">Lien d'abonnement (personnel, ne le partagez pas)</label>
+        <input type="text" id="ical-url" value="{{ ical.url }}" readonly>
+      </div>
+      <button type="button" data-copy-target="ical-url">Copier le lien</button>
+    </div>
+    <ul class="muted small ical-help">
+      <li><strong>iPhone / iPad :</strong> Réglages → Calendrier → Comptes → Ajouter un compte → Autre → Ajouter un calendrier avec abonnement, puis collez le lien.</li>
+      <li><strong>Android (Google Agenda) :</strong> sur ordinateur, calendar.google.com → Autres agendas → + → À partir de l'URL, puis collez le lien ; il apparaît ensuite sur le téléphone.</li>
+      <li><strong>Outlook :</strong> Calendrier → Ajouter un calendrier → S'abonner à partir du web, puis collez le lien.</li>
+    </ul>
+    <details class="confirm">
+      <summary>Régénérer le lien</summary>
+      <p class="small">L'ancien lien cessera de fonctionner : il faudra réabonner tous vos calendriers avec le nouveau.</p>
+      <form method="post" action="/parametres/calendrier">
+        {{ csrf_input(request) }}
+        <button type="submit" class="danger">Confirmer la régénération</button>
+      </form>
+    </details>
+  {% else %}
+    <form method="post" action="/parametres/calendrier">
+      {{ csrf_input(request) }}
+      <button type="submit">Générer mon lien d'abonnement</button>
+    </form>
+  {% endif %}
+  {% endif %}
   <h2>Changer le mot de passe</h2>
   {% if error %}<div class="alert alert-error" role="alert">{{ error }}</div>{% endif %}
   <form method="post" action="/parametres/mot-de-passe" class="stack">

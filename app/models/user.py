@@ -64,6 +64,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     email_notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=true()
     )
+    # Secret of the personal iCal feed URL (/ical/{token}), created on demand from the
+    # settings page. Stored in clear: the page shows the subscription URL again.
+    ical_token: Mapped[str | None] = mapped_column(Text, unique=True)
 
     # Loaded eagerly: async sessions cannot lazy-load on attribute access.
     clinic: Mapped[Clinic | None] = relationship(lazy="selectin")

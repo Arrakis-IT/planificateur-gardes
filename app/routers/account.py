@@ -12,6 +12,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
+from app.config import get_settings
 from app.dependencies import TERMS_ACCEPTANCE_PATH, AppSettings, AuthContext, CurrentAuth, DbSession
 from app.models import User
 from app.routers.auth import TERMS_REQUIRED, set_session_cookie
@@ -25,6 +26,7 @@ from app.schemas.forms import (
 from app.services import audit
 from app.services import calendar as cal
 from app.services.auth import create_session, set_password
+from app.services.ical import ICAL_PATH, issue_token
 from app.services.locks import LockError, apply_lock_form, can_manage_locks, lock_rows
 from app.services.profile import rename_user
 from app.services.security import validate_new_password, verify_password
@@ -65,7 +67,17 @@ async def _settings_context(auth: AuthContext, db: DbSession) -> dict[str, Any]:
         "impersonating": auth.impersonating,
         "lock_rows": rows,
         "lock_action": f"{SETTINGS_PAGE}/verrous",
+        "ical": _ical_context(auth),
     }
+
+
+def _ical_context(auth: AuthContext) -> dict[str, Any] | None:
+    """ "Mon calendrier" section: own clinic users only (not impersonated, not read-only)."""
+    user = auth.user
+    if auth.impersonating or auth.read_only or user.clinic_id is None:
+        return None
+    base = get_settings().app_base_url.rstrip("/")
+    return {"url": f"{base}{ICAL_PATH}/{user.ical_token}" if user.ical_token else None}
 
 
 @router.get("/parametres")
@@ -244,3 +256,26 @@ async def unsubscribe(
     await set_email_notifications(db, user, False, source="one_click_link", request=request)
     await db.commit()
     return render(request, "account/unsubscribed.html")
+
+
+# --- iCal subscription link ---------------------------------------------------------------
+
+ICAL_FORBIDDEN = "Le lien de calendrier est personnel : réservé au médecin lui-même."
+
+
+@router.post(f"{SETTINGS_PAGE}/calendrier", responses={403: {"description": ICAL_FORBIDDEN}})
+async def ical_link(request: Request, auth: CurrentAuth, db: DbSession) -> Response:
+    """Generate the iCal feed link, or regenerate it (the previous URL stops working)."""
+    if _ical_context(auth) is None:
+        raise HTTPException(403, ICAL_FORBIDDEN)
+    regenerated = auth.user.ical_token is not None
+    await issue_token(db, auth.user, request)
+    await db.commit()
+    response = RedirectResponse(f"{SETTINGS_PAGE}#calendrier", status_code=303)
+    set_flash(
+        response,
+        "Nouveau lien créé : l'ancien ne fonctionne plus, réabonnez vos calendriers."
+        if regenerated
+        else "Lien d'abonnement créé.",
+    )
+    return response

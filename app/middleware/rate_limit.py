@@ -23,6 +23,10 @@ def login_limit() -> str:
     return f"{get_settings().rate_limit_login_per_minute}/minute"
 
 
+# Calendar apps poll the iCal feed every few minutes at most: a lax per-IP ceiling.
+ICAL_LIMIT = "60/minute"
+
+
 def reset_limit() -> str:
     """Password reset requests per IP."""
     return f"{RESET_REQUESTS_PER_IP_PER_HOUR}/hour"

@@ -97,6 +97,22 @@
   document.body.addEventListener("htmx:responseError", onHtmxFailure);
   document.body.addEventListener("htmx:sendError", onHtmxFailure);
 
+  // --- Copy buttons (e.g. the iCal subscription link) --------------------------------------
+  document.addEventListener("click", function (event) {
+    var button = event.target instanceof Element && event.target.closest("[data-copy-target]");
+    if (!button) return;
+    var input = document.getElementById(button.getAttribute("data-copy-target"));
+    if (!input) return;
+    input.select();
+    var copied = function () { showToast("Lien copié.", "success"); };
+    var legacy = function () { if (document.execCommand("copy")) copied(); };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(input.value).then(copied, legacy);
+    } else {
+      legacy();
+    }
+  });
+
   // Cells of locked months are inert buttons: say why instead of doing nothing on tap.
   document.addEventListener("click", function (event) {
     var cell = event.target instanceof Element && event.target.closest("[data-locked-message]");
