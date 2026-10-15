@@ -307,6 +307,7 @@ details[open] { display: block; margin-top: 6px; }
 .month-cell.onsite-cell { background: var(--onsite-soft); border-color: var(--onsite); }
 .month-cell.xx-cell { background: var(--err-soft); border-color: var(--err); }
 .month-cell.empty { background: transparent; border-color: transparent; }
+button.month-cell { width: 100%; margin: 0; font: inherit; color: inherit; }
 .month-cell.today { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cell-date { font-weight: 600; font-size: 11px; line-height: 1; }
 .cell-doctor {
@@ -356,7 +357,7 @@ details[open] { display: block; margin-top: 6px; }
 }
 button.cal-day { cursor: pointer; transition: all 0.1s; }
 .cal-day.in-range { background: var(--surface); border-color: var(--line); }
-button.cal-day.in-range:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+button.cal-day.in-range:not(.locked):hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
 .cal-day.out-range { color: var(--ink-faint); }
 .cal-day.weekend.in-range { background: var(--weekend); }
 .cal-day.holiday { background: var(--holiday) !important; border-color: var(--ink-soft); }

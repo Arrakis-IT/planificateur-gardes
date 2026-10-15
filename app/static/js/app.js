@@ -75,6 +75,19 @@
     showToast(detail.message, detail.level);
   });
 
+  // Cells of locked months are inert buttons: say why instead of doing nothing on tap.
+  document.addEventListener("click", function (event) {
+    var cell = event.target instanceof Element && event.target.closest("[data-locked-message]");
+    if (!cell) return;
+    event.preventDefault();
+    var message = cell.getAttribute("data-locked-message");
+    var shown = Array.prototype.some.call(
+      document.querySelectorAll("#toasts .toast"),
+      function (toast) { return toast.textContent === message; }
+    );
+    if (!shown) showToast(message, "warn");
+  });
+
   // --- Planning refresh ---------------------------------------------------------------
   var refreshPending = false;
   function refreshPlanning() {

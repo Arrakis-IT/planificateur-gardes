@@ -337,6 +337,10 @@ async def test_locked_months_are_read_only_in_calendars(client, db, team, plan):
     assert "/resultats/jour/2027-05-" in (await client.get("/mois?mois=2027-05")).text
     results = await client.get("/resultats")
     assert "/resultats/jour/2027-04-" not in results.text and "🔒 Verrouillé" in results.text
+    # Locked cells are inert buttons that explain why on tap (touch screens gave no feedback).
+    message = 'data-locked-message="Mois avril 2027 verrouillé : aucune modification possible."'
+    assert '<button class="month-cell' in results.text and message in results.text
+    assert message in vacations.text and 'type="button" aria-disabled="true"' in vacations.text
     assert "/resultats/jour/2027-05-" in results.text
     week = await client.get("/semaine?date=2027-04-12")
     assert "🔒 Verrouillé" in week.text

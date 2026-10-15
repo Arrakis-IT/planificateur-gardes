@@ -11,6 +11,11 @@
   {% if day.locked %}{{ lock_badge() }}{% endif %}
 {%- endmacro %}
 
+{# Shown as a toast when a cell of a locked month is tapped (static/js/app.js). #}
+{% macro locked_message(d) -%}
+Mois {{ d|month_label }} verrouillé : aucune modification possible.
+{%- endmacro %}
+
 {% macro lock_badge() -%}
   <span class="badge lock-badge" title="Mois verrouillé : aucune modification possible">🔒 Verrouillé</span>
 {%- endmacro %}
@@ -27,11 +32,15 @@
       {% else %}
         {% set filtered_out = filter_code and (not day.doctor or day.doctor.doctor_code != filter_code) %}
         {% set editable = return_to and day.planned and not day.locked %}
-        {% set tag = 'a' if editable else 'div' %}
+        {# A locked cell of an editable view is a button: tapping it explains why nothing
+           can be edited (a plain div gives no feedback at all on touch screens). #}
+        {% set locked_tap = return_to and day.planned and day.locked %}
+        {% set tag = 'a' if editable else ('button' if locked_tap else 'div') %}
         <{{ tag }} class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}{{ ' drafted' if day.drafted }}{{ ' clickable' if editable }}{{ ' locked-cell' if day.locked }}"
              title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}{{ ' — modification non enregistrée' if day.drafted }}{{ ' — mois verrouillé' if day.locked }}"
              {% if editable %}href="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}"
-             hx-get="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}" hx-target="#modal" hx-swap="innerHTML"{% endif %}>
+             hx-get="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}" hx-target="#modal" hx-swap="innerHTML"{% endif %}
+             {% if locked_tap %}type="button" aria-disabled="true" data-locked-message="{{ locked_message(d) }}"{% endif %}>
           <div class="cell-date">{{ d.day }}</div>
           {% if day.doctor %}
             <div class="cell-doctor" style="--doctor-color: {{ day.doctor.color }}">{{ day.doctor.doctor_code }}</div>
@@ -59,8 +68,9 @@
         {% if d and d in period %}
           {% set weekend = d.weekday() >= 5 or d in public_holidays %}
           {% if locked %}
-          <div class="cal-day in-range locked{{ ' weekend' if weekend }}{{ ' ' ~ marked_class if d in marked }}"
-               title="{{ d|long_date }} — mois verrouillé">{{ d.day }}</div>
+          <button type="button" aria-disabled="true" data-locked-message="{{ locked_message(d) }}"
+                  class="cal-day in-range locked{{ ' weekend' if weekend }}{{ ' ' ~ marked_class if d in marked }}"
+                  title="{{ d|long_date }} — mois verrouillé">{{ d.day }}</button>
           {% else %}
           <button type="submit" name="date" value="{{ d.isoformat() }}"
                   class="cal-day in-range{{ ' weekend' if weekend }}{{ ' ' ~ marked_class if d in marked }}"
