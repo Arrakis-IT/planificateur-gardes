@@ -10,6 +10,21 @@ from datetime import UTC, datetime
 from typing import Any
 
 NOISY_LOGGERS = ("weasyprint", "fontTools")
+# Uptime monitor pings (every few minutes) are not worth an access log line.
+QUIET_ACCESS_PATHS = frozenset({"/health"})
+
+
+class QuietPathsFilter(logging.Filter):
+    """Drop uvicorn access log lines for QUIET_ACCESS_PATHS (query string ignored).
+
+    uvicorn's access record args are (client, method, path, http_version, status).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) >= 3 and isinstance(args[2], str):
+            return args[2].split("?", 1)[0] not in QUIET_ACCESS_PATHS
+        return True
 
 
 class JsonFormatter(logging.Formatter):
@@ -40,3 +55,6 @@ def configure_logging(level: str, json_output: bool) -> None:
     # Chatty third-party loggers (WeasyPrint logs every rendering step at INFO).
     for name in NOISY_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
+    access = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, QuietPathsFilter) for f in access.filters):
+        access.addFilter(QuietPathsFilter())
