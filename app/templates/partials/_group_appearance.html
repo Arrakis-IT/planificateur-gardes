@@ -1,0 +1,60 @@
+{# Doctor color palette of a clinic + per-doctor color (settings of the group admin, admin
+   clinic sheet). Needs `appearance` (see app/routers/account.py: _appearance_context). #}
+<section id="apparence">
+<h2>Apparence du groupe</h2>
+<p class="muted small">Couleur des médecins dans les plannings, les calendriers et le PDF. Toutes les couleurs restent lisibles avec un texte blanc (contraste WCAG AA).</p>
+{% if appearance.error %}<div class="alert alert-error" role="alert">{{ appearance.error }}</div>{% endif %}
+<form method="post" action="{{ appearance.palette_action }}" data-palette-form data-current="{{ appearance.current }}">
+  {{ csrf_input(request) }}
+  <div class="palette-cards">
+  {% for palette in appearance.palettes %}
+    <label class="palette-card{{ ' active' if palette.key.value == appearance.current }}">
+      <span class="palette-head">
+        <input type="radio" name="palette" value="{{ palette.key.value }}" {{ 'checked' if palette.key.value == appearance.current }}>
+        <span class="palette-name">{{ palette.label }}</span>
+      </span>
+      <span class="palette-swatches">{% for color, name in palette.colors %}<span class="swatch" style="--doctor-color: {{ color }}" title="{{ name }}"></span>{% endfor %}</span>
+    </label>
+  {% endfor %}
+  </div>
+  <noscript>
+    <div class="checkbox"><input type="checkbox" id="palette-confirm-nojs" name="confirm" value="true" required><label for="palette-confirm-nojs" class="plain-label">Je confirme : la couleur de tous les médecins sera réattribuée.</label></div>
+    <button type="submit">Appliquer la palette</button>
+  </noscript>
+  <dialog class="confirm-dialog" data-palette-dialog>
+    <h3>Changer de palette ?</h3>
+    <p>La couleur de tous les médecins du groupe sera réattribuée selon la nouvelle palette. Les couleurs choisies individuellement seront perdues.</p>
+    <div class="row">
+      <button type="submit" name="confirm" value="true" class="primary">Confirmer</button>
+      <button type="button" data-palette-cancel>Annuler</button>
+    </div>
+  </dialog>
+</form>
+
+{% if appearance.doctors %}
+<h3>Couleur des médecins</h3>
+<table class="table doctor-colors">
+  <tbody>
+  {% for doctor in appearance.doctors %}
+    <tr>
+      <td><span class="code" style="--doctor-color: {{ doctor.color }}">{{ doctor.doctor_code }}</span> {{ doctor.full_name }}</td>
+      <td>
+        <form method="post" action="{{ appearance.color_action }}" class="row color-form"
+              hx-post="{{ appearance.color_action }}" hx-trigger="change" hx-swap="none">
+          {{ csrf_input(request) }}
+          <input type="hidden" name="user_id" value="{{ doctor.id }}">
+          <span class="swatch color-preview" style="--doctor-color: {{ doctor.color }}"></span>
+          <select name="color" aria-label="Couleur de {{ doctor.full_name }}" data-color-preview>
+            {% for color, name in appearance.active_colors %}
+              <option value="{{ color }}" {{ 'selected' if color == doctor.color|lower }}>{{ name }} ({{ color }})</option>
+            {% endfor %}
+          </select>
+          <noscript><button type="submit">Enregistrer</button></noscript>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+</section>

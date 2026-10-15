@@ -97,6 +97,45 @@
   document.body.addEventListener("htmx:responseError", onHtmxFailure);
   document.body.addEventListener("htmx:sendError", onHtmxFailure);
 
+  // --- Group palette: confirm before recoloring every doctor ----------------------------------
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!(input instanceof HTMLInputElement) || input.name !== "palette") return;
+    var form = input.closest("[data-palette-form]");
+    var dialog = form && form.querySelector("[data-palette-dialog]");
+    if (!dialog || input.value === form.dataset.current) return;
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute("open", "");
+    }
+  });
+  function cancelPalette(form) {
+    var current = form.querySelector('input[name="palette"][value="' + form.dataset.current + '"]');
+    if (current) current.checked = true;
+    var dialog = form.querySelector("[data-palette-dialog]");
+    if (dialog && dialog.open) dialog.close ? dialog.close() : dialog.removeAttribute("open");
+  }
+  document.addEventListener("click", function (event) {
+    var button = event.target instanceof Element && event.target.closest("[data-palette-cancel]");
+    if (button) cancelPalette(button.closest("[data-palette-form]"));
+  });
+  document.addEventListener("cancel", function (event) {  // Escape on the dialog
+    var form = event.target instanceof Element && event.target.closest("[data-palette-form]");
+    if (form) cancelPalette(form);
+  }, true);
+
+  // --- Doctor color dropdowns: live preview swatch ------------------------------------------
+  document.addEventListener("change", function (event) {
+    var select = event.target;
+    if (!(select instanceof HTMLSelectElement) || select.dataset.colorPreview === undefined) return;
+    var preview = select.parentElement && select.parentElement.querySelector(".color-preview");
+    if (preview) preview.style.setProperty("--doctor-color", select.value);
+    var row = select.closest("tr");
+    var chip = row && row.querySelector(".code");
+    if (chip) chip.style.setProperty("--doctor-color", select.value);
+  });
+
   // --- Copy buttons (e.g. the iCal subscription link) --------------------------------------
   document.addEventListener("click", function (event) {
     var button = event.target instanceof Element && event.target.closest("[data-copy-target]");

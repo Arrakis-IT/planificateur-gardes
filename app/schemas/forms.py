@@ -105,6 +105,23 @@ class MonthLockForm(_Form):
     action: Literal["lock", "unlock"]
 
 
+class PaletteForm(_Form):
+    """Change the clinic's doctor color palette (confirmation mandatory)."""
+
+    palette: Annotated[str, StringConstraints(max_length=20)]
+    confirm: bool = False
+
+
+HexColor = Annotated[str, StringConstraints(strip_whitespace=True, pattern=r"^#[0-9A-Fa-f]{6}$")]
+
+
+class DoctorColorForm(_Form):
+    """Manual color of one doctor (must belong to the clinic's active palette)."""
+
+    color: HexColor
+    user_id: uuid.UUID | None = None  # settings page; the admin route has it in the path
+
+
 class GroupAdminForm(_Form):
     """POST /admin/clinic/{id}/group-admin."""
 

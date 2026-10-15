@@ -83,10 +83,10 @@ def generate_doctor_code(full_name: str, taken: Iterable[str]) -> str:
     raise DoctorCodeError("Aucun code disponible pour ce nom.")  # pragma: no cover
 
 
-def pick_color(used_colors: Iterable[str]) -> str:
+def pick_color(used_colors: Iterable[str], palette: tuple[str, ...] = DOCTOR_PALETTE) -> str:
     """First palette color not yet used in the clinic; cycles once the palette is exhausted."""
     used = [c.lower() for c in used_colors]
-    for color in DOCTOR_PALETTE:
+    for color in palette:
         if color not in used:
             return color
-    return DOCTOR_PALETTE[len(used) % len(DOCTOR_PALETTE)]
+    return palette[len(used) % len(palette)]

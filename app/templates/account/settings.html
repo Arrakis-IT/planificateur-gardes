@@ -80,6 +80,9 @@
     </div>
     <button type="submit" class="primary">Enregistrer</button>
   </form>
+  {% if appearance and not forced %}
+    {% include "partials/_group_appearance.html" %}
+  {% endif %}
   {% if lock_rows is not none and not forced %}
     {% include "partials/_month_locks.html" %}
   {% endif %}

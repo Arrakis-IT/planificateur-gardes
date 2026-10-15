@@ -20,13 +20,27 @@ from app.repositories import admin as admin_repo
 from app.repositories import clinics as clinics_repo
 from app.repositories import drafts as drafts_repo
 from app.repositories import users as users_repo
-from app.schemas.forms import CustomHolidayForm, GroupAdminForm, MonthLockForm, ReauthForm
+from app.routers.account import PALETTE_CONFIRM_REQUIRED, appearance_context
+from app.routers.appearance import (
+    color_error_response,
+    color_saved_response,
+    palette_changed_message,
+)
+from app.schemas.forms import (
+    CustomHolidayForm,
+    DoctorColorForm,
+    GroupAdminForm,
+    MonthLockForm,
+    PaletteForm,
+    ReauthForm,
+)
 from app.services import audit
 from app.services import calendar as cal
 from app.services.auth import is_user_allowed
 from app.services.group_admin import GroupAdminError, set_group_admin
 from app.services.holidays import lu_public_holidays
 from app.services.locks import LockError, apply_lock_form, lock_rows
+from app.services.palettes import PaletteError, change_palette, palette_of, set_doctor_color
 from app.services.presence import hub
 from app.services.security import verify_password
 from app.templating import is_htmx, render, set_flash, trigger_toast
@@ -123,14 +137,99 @@ async def _clinic_page(
     active = await db.scalar(
         select(Generation).where(Generation.clinic_id == clinic.id, Generation.is_active.is_(True))
     )
-    context = {
+    context: dict[str, Any] = {
         "clinic": clinic,
         "users": users,
         "active": active,
         "lock_rows": await lock_rows(db, clinic.id, cal.today_local()),
         "lock_action": f"/admin/clinic/{clinic.id}/verrous",
+        "appearance": await appearance_context(
+            db, clinic, f"/admin/clinic/{clinic.id}/palette", f"/admin/clinic/{clinic.id}/couleur"
+        ),
     }
-    return render(request, "admin/clinic.html", context | (extra or {}), status_code)
+    context |= extra or {}
+    if context.get("appearance_error") and context["appearance"]:
+        context["appearance"]["error"] = context["appearance_error"]
+    return render(request, "admin/clinic.html", context, status_code)
+
+
+@router.post("/clinic/{clinic_id}/palette", responses={400: {"description": "Invalid palette"}})
+async def clinic_palette(
+    request: Request,
+    clinic_id: uuid.UUID,
+    form: Annotated[PaletteForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+) -> Response:
+    """Change a clinic's palette (every doctor is recolored; confirmation required)."""
+    clinic = await _clinic_or_404(db, clinic_id)
+    if not form.confirm:
+        return await _clinic_page(
+            request, db, clinic, {"appearance_error": PALETTE_CONFIRM_REQUIRED}, 400
+        )
+    try:
+        changed = await change_palette(
+            db, clinic, form.palette, actor_id=auth.real_user.id, request=request
+        )
+    except PaletteError as exc:
+        return await _clinic_page(request, db, clinic, {"appearance_error": str(exc)}, 400)
+    await db.commit()
+    return _redirect(
+        f"/admin/clinic/{clinic.id}#apparence",
+        palette_changed_message(clinic) if changed else None,
+    )
+
+
+@router.post(
+    "/clinic/{clinic_id}/couleur", responses={400: {"description": "Color outside the palette"}}
+)
+async def clinic_doctor_color(
+    request: Request,
+    clinic_id: uuid.UUID,
+    form: Annotated[DoctorColorForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+) -> Response:
+    """Color of one doctor of the clinic (from the clinic sheet)."""
+    clinic = await _clinic_or_404(db, clinic_id)
+    doctor = (
+        await users_repo.get_user_in_clinic(db, clinic.id, form.user_id) if form.user_id else None
+    )
+    try:
+        if doctor is None:
+            raise PaletteError("Médecin introuvable.")
+        await set_doctor_color(
+            db, clinic, doctor, form.color, actor_id=auth.real_user.id, request=request
+        )
+    except PaletteError as exc:
+        return color_error_response(request, str(exc))
+    await db.commit()
+    return color_saved_response(request, doctor, f"/admin/clinic/{clinic.id}#apparence")
+
+
+@router.post(
+    "/users/{user_id}/color", responses={400: {"description": "Color outside the palette"}}
+)
+async def user_color(
+    request: Request,
+    user_id: uuid.UUID,
+    form: Annotated[DoctorColorForm, Form()],
+    db: DbSession,
+    auth: SuperadminAuth,
+) -> Response:
+    """Color of a doctor, from their admin sheet."""
+    doctor = await users_repo.get_user_by_id(db, user_id)
+    if doctor is None or doctor.clinic_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Médecin introuvable.")
+    clinic = await _clinic_or_404(db, doctor.clinic_id)
+    try:
+        await set_doctor_color(
+            db, clinic, doctor, form.color, actor_id=auth.real_user.id, request=request
+        )
+    except PaletteError as exc:
+        return color_error_response(request, str(exc))
+    await db.commit()
+    return color_saved_response(request, doctor, f"/admin/users/{doctor.id}")
 
 
 @router.post("/clinic/{clinic_id}/group-admin")
@@ -478,6 +577,7 @@ async def user_profile(request: Request, user_id: uuid.UUID, db: DbSession) -> R
             "entries": entries,
             "users": {u.id: u for u in await users_repo.list_users(db)},
             "clinics": {c.id: c for c in await clinics_repo.list_clinics(db)},
+            "palette_colors": palette_of(user.clinic).colors if user.clinic else None,
         },
     )
 

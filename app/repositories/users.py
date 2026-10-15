@@ -13,8 +13,10 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import User
-from app.services.doctors import generate_doctor_code, pick_color
+from app.models import Clinic, User
+from app.models.palette import ColorPalette
+from app.services.doctors import DOCTOR_PALETTE, generate_doctor_code, pick_color
+from app.services.palettes import PALETTES
 from app.services.security import hash_password
 
 # --- Clinic-scoped ----------------------------------------------------------------
@@ -89,6 +91,7 @@ async def create_user(
     """Create a user with a doctor code and color unique within its clinic."""
     taken_codes: list[str] = []
     used_colors: list[str] = []
+    palette = DOCTOR_PALETTE
     if clinic_id is not None:
         rows = (
             await db.execute(
@@ -97,12 +100,15 @@ async def create_user(
         ).all()
         taken_codes = [code for code, _, _ in rows]
         used_colors = [color for _, color, active in rows if active]
+        clinic = await db.get(Clinic, clinic_id)
+        if clinic is not None:
+            palette = PALETTES[ColorPalette(clinic.color_palette)].hexes
     user = User(
         email=email.strip(),
         full_name=full_name.strip(),
         password_hash=hash_password(password),
         doctor_code=generate_doctor_code(full_name, taken_codes),
-        color=pick_color(used_colors),
+        color=pick_color(used_colors, palette),
         clinic_id=None if is_superadmin else clinic_id,
         is_superadmin=is_superadmin,
         must_change_password=must_change_password,

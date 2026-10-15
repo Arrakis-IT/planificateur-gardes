@@ -14,12 +14,19 @@ from starlette.responses import Response
 
 from app.config import get_settings
 from app.dependencies import TERMS_ACCEPTANCE_PATH, AppSettings, AuthContext, CurrentAuth, DbSession
-from app.models import User
+from app.models import Clinic, User
+from app.routers.appearance import (
+    color_error_response,
+    color_saved_response,
+    palette_changed_message,
+)
 from app.routers.auth import TERMS_REQUIRED, set_session_cookie
 from app.schemas.forms import (
     ChangePasswordForm,
+    DoctorColorForm,
     MonthLockForm,
     NotificationsForm,
+    PaletteForm,
     ProfileForm,
     TermsForm,
 )
@@ -28,6 +35,14 @@ from app.services import calendar as cal
 from app.services.auth import create_session, set_password
 from app.services.ical import ICAL_PATH, issue_token
 from app.services.locks import LockError, apply_lock_form, can_manage_locks, lock_rows
+from app.services.palettes import (
+    PALETTES,
+    PaletteError,
+    change_palette,
+    clinic_doctors_by_creation,
+    palette_of,
+    set_doctor_color,
+)
 from app.services.profile import rename_user
 from app.services.security import validate_new_password, verify_password
 from app.services.unsubscribe import (
@@ -36,6 +51,10 @@ from app.services.unsubscribe import (
     set_email_notifications,
 )
 from app.templating import is_htmx, render, set_flash, trigger_toast
+
+PALETTE_CONFIRM_REQUIRED = (
+    "Confirmez le changement de palette : la couleur de tous les médecins sera réattribuée."
+)
 
 router = APIRouter(tags=["account"])
 
@@ -50,6 +69,7 @@ PROFILE_IMPERSONATION_FORBIDDEN = (
 LOCKS_FORBIDDEN = "Réservé à l'administrateur du groupe."
 SETTINGS_PAGE = "/parametres"
 LOCKS_FRAGMENT = "partials/_month_locks.html"
+APPEARANCE_FORBIDDEN = "Réservé à l'administrateur du groupe."
 
 
 def _locks_clinic(auth: AuthContext) -> uuid.UUID | None:
@@ -68,6 +88,11 @@ async def _settings_context(auth: AuthContext, db: DbSession) -> dict[str, Any]:
         "lock_rows": rows,
         "lock_action": f"{SETTINGS_PAGE}/verrous",
         "ical": _ical_context(auth),
+        "appearance": await appearance_context(
+            db, auth.clinic, f"{SETTINGS_PAGE}/apparence", f"{SETTINGS_PAGE}/apparence/couleur"
+        )
+        if clinic_id and auth.clinic
+        else None,
     }
 
 
@@ -279,3 +304,82 @@ async def ical_link(request: Request, auth: CurrentAuth, db: DbSession) -> Respo
         else "Lien d'abonnement créé.",
     )
     return response
+
+
+# --- Group appearance (doctor color palette) ------------------------------------------------
+
+
+async def appearance_context(
+    db: DbSession, clinic: Clinic | None, palette_action: str, color_action: str
+) -> dict[str, Any] | None:
+    """Data of the "Apparence du groupe" section (also used by the admin clinic sheet)."""
+    if clinic is None:
+        return None
+    palette = palette_of(clinic)
+    return {
+        "palettes": list(PALETTES.values()),
+        "current": palette.key.value,
+        "active_colors": palette.colors,
+        "doctors": await clinic_doctors_by_creation(db, clinic.id),
+        "palette_action": palette_action,
+        "color_action": color_action,
+    }
+
+
+def _managed_clinic(auth: AuthContext) -> Clinic:
+    if _locks_clinic(auth) is None or auth.clinic is None:  # group admin / superadmin only
+        raise HTTPException(403, APPEARANCE_FORBIDDEN)
+    return auth.clinic
+
+
+@router.post(
+    f"{SETTINGS_PAGE}/apparence",
+    responses={400: {"description": "Invalid palette"}, 403: {"description": APPEARANCE_FORBIDDEN}},
+)
+async def group_palette(
+    request: Request, form: Annotated[PaletteForm, Form()], auth: CurrentAuth, db: DbSession
+) -> Response:
+    """Change the clinic's palette: every doctor is recolored (confirmation required)."""
+    clinic = _managed_clinic(auth)
+    error = None if form.confirm else PALETTE_CONFIRM_REQUIRED
+    if error is None:
+        try:
+            changed = await change_palette(
+                db, clinic, form.palette, actor_id=auth.real_user.id, request=request
+            )
+        except PaletteError as exc:
+            error = str(exc)
+    if error is not None:
+        context = await _settings_context(auth, db)
+        context["appearance"]["error"] = error
+        return render(request, "account/settings.html", context, 400)
+    await db.commit()
+    response = RedirectResponse(f"{SETTINGS_PAGE}#apparence", status_code=303)
+    if changed:
+        set_flash(response, palette_changed_message(clinic))
+    return response
+
+
+@router.post(
+    f"{SETTINGS_PAGE}/apparence/couleur",
+    responses={
+        400: {"description": "Color outside the palette"},
+        403: {"description": APPEARANCE_FORBIDDEN},
+    },
+)
+async def doctor_color(
+    request: Request, form: Annotated[DoctorColorForm, Form()], auth: CurrentAuth, db: DbSession
+) -> Response:
+    """Give one doctor of the clinic a color of its active palette."""
+    clinic = _managed_clinic(auth)
+    doctor = await db.get(User, form.user_id) if form.user_id else None
+    try:
+        if doctor is None:
+            raise PaletteError("Médecin introuvable.")
+        await set_doctor_color(
+            db, clinic, doctor, form.color, actor_id=auth.real_user.id, request=request
+        )
+    except PaletteError as exc:
+        return color_error_response(request, str(exc))
+    await db.commit()
+    return color_saved_response(request, doctor, f"{SETTINGS_PAGE}#apparence")

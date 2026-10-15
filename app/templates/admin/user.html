@@ -14,6 +14,23 @@
     <dt>Créé le</dt><dd>{{ user.created_at|local_datetime }}</dd>
   </dl>
   <div class="stack sheet-actions">
+    {% if palette_colors %}
+    <form method="post" action="/admin/users/{{ user.id }}/color" class="row">
+      {{ csrf_input(request) }}
+      <div class="grow">
+        <label for="doctor-color">Couleur (palette du groupe)</label>
+        <div class="row color-form">
+          <span class="swatch color-preview" style="--doctor-color: {{ user.color }}"></span>
+          <select id="doctor-color" name="color" data-color-preview>
+            {% for color, name in palette_colors %}
+              <option value="{{ color }}" {{ 'selected' if color == user.color|lower }}>{{ name }} ({{ color }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <button type="submit">Enregistrer la couleur</button>
+    </form>
+    {% endif %}
     <form method="post" action="/admin/users/{{ user.id }}/rename" class="row">
       {{ csrf_input(request) }}
       <div class="grow">
