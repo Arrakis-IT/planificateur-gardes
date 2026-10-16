@@ -22,6 +22,11 @@ jobs:
         with:
           languages: python
           queries: security-extended
+          # Alembic reads revision / down_revision / branch_labels / depends_on by
+          # introspection: "unused global variable" false positives in every migration.
+          config: |
+            paths-ignore:
+              - alembic/versions/**
       - uses: github/codeql-action/analyze@9f759ee644a3e7c15c1390abf49868036c00067b # v3.38.3
         with:
           category: "/language:python"
