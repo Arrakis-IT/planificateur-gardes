@@ -5,6 +5,7 @@
 
 import re
 import uuid
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -155,6 +156,32 @@ async def test_injected_inline_script_is_blocked_by_csp(monkeypatch, tmp_path):
     assert _directive(policy, "style-src") == ["'self'"]  # no <style> blocks either
 
 
+class _InlineCodeFinder(HTMLParser):
+    """Collect inline JavaScript / CSS from a template, with a real HTML parser (tag and
+    attribute names are case-insensitive, any whitespace or attribute order) rather than
+    regular expressions."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.offenders: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        names = {name for name, _ in attrs}  # lowercased by HTMLParser
+        if tag == "script" and "src" not in names:
+            self.offenders.append("inline <script>")
+        if tag == "style":
+            self.offenders.append("<style> block")
+        for name, value in attrs:
+            if name.startswith("on"):
+                self.offenders.append(f"{name} handler")
+            if name.startswith("hx-on"):  # htmx inline handlers (eval-like, CSP-blocked)
+                self.offenders.append(f"{name} handler")
+            if value and value.strip().lower().startswith("javascript:"):
+                self.offenders.append(f"javascript: URL in {name}")
+
+    handle_startendtag = handle_starttag
+
+
 def test_no_inline_scripts_or_handlers_in_templates():
     """Browser-facing templates never rely on inline JS or <style> blocks."""
     offenders = []
@@ -162,18 +189,36 @@ def test_no_inline_scripts_or_handlers_in_templates():
         relative = path.relative_to(TEMPLATES).as_posix()
         if relative.startswith(("pdf/", "email/")):  # rendered server-side / in mail clients
             continue
-        text = path.read_text(encoding="utf-8")
-        if re.search(r"<script(?![^>]*\bsrc=)[^>]*>", text):
-            offenders.append(f"{relative}: inline <script>")
-        if re.search(r"\son[a-z]+\s*=", text):
-            offenders.append(f"{relative}: on* handler")
-        if "<style" in text:
-            offenders.append(f"{relative}: <style> block")
-        if "javascript:" in text.lower():
-            offenders.append(f"{relative}: javascript: URL")
-        if re.search(r"\shx-on(:|-|=)", text):  # htmx inline handlers (eval-like, CSP-blocked)
-            offenders.append(f"{relative}: hx-on handler")
+        finder = _InlineCodeFinder()
+        finder.feed(path.read_text(encoding="utf-8"))
+        finder.close()
+        offenders += [f"{relative}: {problem}" for problem in finder.offenders]
     assert offenders == []
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "<script>alert(1)</script>",
+        "<SCRIPT >alert(1)</SCRIPT >",
+        '<script type="module">x</script>',
+        "<style>p{}</style>",
+        '<a href="#" onclick="x()">',
+        '<button OnClick="x()">',
+        '<div hx-on:click="x()">',
+        '<a href=" JavaScript:alert(1)">',
+    ],
+)
+def test_inline_code_finder_catches_variants(snippet):
+    finder = _InlineCodeFinder()
+    finder.feed(snippet)
+    assert finder.offenders, snippet
+
+
+def test_inline_code_finder_allows_external_scripts():
+    finder = _InlineCodeFinder()
+    finder.feed('<script src="/static/js/app.js" defer></script><a href="/x" hx-get="/y">')
+    assert finder.offenders == []
 
 
 def test_only_doctor_colors_use_style_attributes():
