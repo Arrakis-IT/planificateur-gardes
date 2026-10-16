@@ -341,6 +341,7 @@ async def group_palette(
 ) -> Response:
     """Change the clinic's palette: every doctor is recolored (confirmation required)."""
     clinic = _managed_clinic(auth)
+    changed = False
     error = None if form.confirm else PALETTE_CONFIRM_REQUIRED
     if error is None:
         try:
