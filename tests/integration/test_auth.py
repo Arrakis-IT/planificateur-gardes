@@ -368,3 +368,38 @@ async def test_reset_revokes_existing_sessions(client, db, mailer, make_clinic, 
     )
     assert await db.scalar(select(func.count(UserSession.id))) == 0
     assert (await client.get("/")).status_code == 303
+
+
+# --- Open redirect: ?next= / form next (CodeQL py/url-redirection) ---------------------------
+
+
+@pytest.mark.parametrize(
+    ("next_value", "expected"),
+    [
+        ("https://evil.com", "/"),
+        ("//evil.com", "/"),
+        ("/\\evil.com", "/"),
+        ("/x?u=https://evil.com", "/"),
+        ("/dashboard", "/dashboard"),
+    ],
+)
+async def test_login_next_only_redirects_locally(
+    client, db, make_clinic, make_user, next_value, expected
+):
+    await make_user("doc@example.lu", clinic=await make_clinic())
+    # POST /login (form field "next")
+    response = await post_form(
+        client,
+        "/login",
+        {"email": "doc@example.lu", "password": DEFAULT_PASSWORD, "next": next_value},
+    )
+    assert response.status_code == 303 and response.headers["location"] == expected
+    # GET /login?next=… while already logged in
+    already = await client.get("/login", params={"next": next_value})
+    assert already.status_code == 303 and already.headers["location"] == expected
+
+
+async def test_login_page_never_echoes_an_external_next(client, db):
+    page = await client.get("/login", params={"next": "https://evil.com"})
+    assert page.status_code == 200
+    assert "evil.com" not in page.text and 'name="next" value="/"' in page.text

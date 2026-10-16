@@ -14,7 +14,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import Response
 
-from app.dependencies import DbSession, SuperadminAuth, require_superadmin
+from app.dependencies import DbSession, SuperadminAuth, require_superadmin, safe_next_url
 from app.models import AuditLog, Clinic, CustomHoliday, Generation, User
 from app.repositories import admin as admin_repo
 from app.repositories import clinics as clinics_repo
@@ -49,7 +49,8 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(requir
 
 
 def _redirect(url: str, message: str | None = None, level: str = "success") -> Response:
-    response = RedirectResponse(url, status_code=303)
+    # Targets are built from fixed paths and typed ids; validated anyway (defense in depth).
+    response = RedirectResponse(safe_next_url(url, default="/admin"), status_code=303)
     if message:
         set_flash(response, message, level)
     return response

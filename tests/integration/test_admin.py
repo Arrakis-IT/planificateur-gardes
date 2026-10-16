@@ -902,3 +902,29 @@ async def test_user_profile_page(admin_client, db, cabinet):
     assert (
         await admin_client.get("/admin/users/00000000-0000-0000-0000-000000000000")
     ).status_code == 404
+
+
+# --- Open redirect hardening of the admin redirect helpers (CodeQL py/url-redirection) ---------
+
+
+@pytest.mark.parametrize("module", ["app.routers.admin", "app.routers.admin_ops"])
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://evil.com", "/admin"),
+        ("//evil.com", "/admin"),
+        ("/admin/clinic/x?u=https://evil.com", "/admin"),
+        ("/admin/users", "/admin/users"),
+    ],
+)
+def test_admin_redirect_helpers_stay_local(module, url, expected):
+    import importlib
+
+    redirect = importlib.import_module(module)._redirect
+    assert redirect(url).headers["location"] == expected
+
+
+async def test_admin_redirects_still_reach_their_pages(admin_client, db, make_clinic):
+    clinic = await make_clinic()
+    response = await post_form(admin_client, f"/admin/clinics/{clinic.id}/toggle-active")
+    assert response.status_code == 303 and response.headers["location"] == "/admin/clinics"

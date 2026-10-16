@@ -6,7 +6,7 @@
 import pytest
 
 from app.config import get_settings
-from app.dependencies import safe_next_path
+from app.dependencies import safe_next_url
 from app.middleware.csrf import form_token
 from app.repositories.clinics import slugify
 from app.services.auth import decode_session_cookie, encode_session_cookie
@@ -74,10 +74,20 @@ def test_password_cannot_be_email():
         ("/\\evil.example", "/"),
         ("/\t/evil.example", "/"),
         ("javascript:alert(1)", "/"),
+        ("https:/evil.example", "/"),
+        ("/redirect?to=https://evil.example", "/"),  # "://" anywhere is refused
+        ("/\n/evil.example", "/"),
+        ("evil.example/path", "/"),
+        ("/dashboard", "/dashboard"),
     ],
 )
-def test_safe_next_path(value, expected):
-    assert safe_next_path(value) == expected
+def test_safe_next_url(value, expected):
+    assert safe_next_url(value) == expected
+
+
+def test_safe_next_url_custom_default():
+    assert safe_next_url("https://evil.example", default="/admin") == "/admin"
+    assert safe_next_url("/admin/users", default="/admin") == "/admin/users"
 
 
 def test_session_cookie_signature():

@@ -16,7 +16,7 @@ from app.dependencies import (
     AppSettings,
     DbSession,
     OptionalAuth,
-    safe_next_path,
+    safe_next_url,
 )
 from app.middleware.rate_limit import limiter, login_limit, reset_limit
 from app.schemas.forms import InvitationForm, LoginForm, NewPasswordForm, ResetRequestForm
@@ -61,8 +61,8 @@ def set_session_cookie(response: Response, cookie_value: str, settings: Settings
 async def login_page(request: Request, auth: OptionalAuth, next: str = "/") -> Response:
     """Login form; already authenticated users go straight to their target."""
     if auth is not None:
-        return RedirectResponse(safe_next_path(next), status_code=303)
-    return render(request, LOGIN_TEMPLATE, {"next": safe_next_path(next)})
+        return RedirectResponse(safe_next_url(next), status_code=303)
+    return render(request, LOGIN_TEMPLATE, {"next": safe_next_url(next)})
 
 
 @router.post("/login")
@@ -76,7 +76,7 @@ async def login(
     auth: OptionalAuth,
 ) -> Response:
     """Authenticate, rotate the session and redirect."""
-    next_path = safe_next_path(form.next)
+    next_path = safe_next_url(form.next)
     context = {"next": next_path, "email": form.email}
     if not await turnstile.verify(form.turnstile, audit.client_ip(request)):
         return render(request, LOGIN_TEMPLATE, context | {"error": TURNSTILE_ERROR}, 400)

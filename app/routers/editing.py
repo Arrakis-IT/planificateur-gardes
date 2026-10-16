@@ -19,7 +19,7 @@ from fastapi.responses import RedirectResponse
 from starlette.responses import Response
 
 from app.db import get_sessionmaker
-from app.dependencies import ClinicAuth, ClinicScope, DbSession, safe_next_path
+from app.dependencies import ClinicAuth, ClinicScope, DbSession, safe_next_url
 from app.repositories import drafts as drafts_repo
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
@@ -53,7 +53,7 @@ def _is_htmx(request: Request) -> bool:
 
 def _return_to(value: str | None) -> str:
     """Only the editable views are valid return targets."""
-    target = safe_next_path(value)
+    target = safe_next_url(value)
     return target if target.startswith((RESULTS_PATH, MONTH_PATH)) else DEFAULT_RETURN
 
 

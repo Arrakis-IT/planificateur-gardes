@@ -17,7 +17,7 @@ Both are honoured only when the session's real user is a superadmin.
 import uuid
 from dataclasses import dataclass
 from typing import Annotated
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,18 +119,28 @@ async def get_auth(request: Request, db: DbSession, settings: AppSettings) -> Au
 OptionalAuth = Annotated[AuthContext | None, Depends(get_auth)]
 
 
-def safe_next_path(value: str | None) -> str:
-    """Only allow local absolute paths as post-login redirect targets (no open redirect)."""
+def safe_next_url(value: str | None, default: str = "/") -> str:
+    """A redirect target from the request, if it is a local absolute path; else `default`.
+
+    Refused (open redirect): empty, not starting with "/", protocol-relative ("//host"),
+    containing "://" or a backslash, control characters (browsers strip tabs / newlines:
+    "/\t/evil.example" would become "//evil.example"), or anything urlparse sees a scheme or
+    a host in.
+    """
+    if not value:
+        return default
+    parsed = urlparse(value)
     if (
-        not value
-        or not value.startswith("/")
-        or value.startswith("//")
-        or "\\" in value
-        # Browsers strip tabs/newlines: "/\t/evil.example" would become "//evil.example".
-        or any(ord(c) < 0x20 or ord(c) == 0x7F for c in value)
+        not parsed.scheme
+        and not parsed.netloc
+        and value.startswith("/")
+        and not value.startswith("//")
+        and "://" not in value
+        and "\\" not in value
+        and not any(ord(c) < 0x20 or ord(c) == 0x7F for c in value)
     ):
-        return "/"
-    return value
+        return value
+    return default
 
 
 def require_user(request: Request, auth: OptionalAuth) -> AuthContext:
