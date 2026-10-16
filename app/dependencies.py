@@ -124,22 +124,25 @@ def safe_next_url(value: str | None, default: str = "/") -> str:
 
     Refused (open redirect): empty, not starting with "/", protocol-relative ("//host"),
     containing "://" or a backslash, control characters (browsers strip tabs / newlines:
-    "/\t/evil.example" would become "//evil.example"), or anything urlparse sees a scheme or
+    "/\\t/evil.example" would become "//evil.example"), or anything urlparse sees a scheme or
     a host in.
+
+    Written as the guard CodeQL documents for py/url-redirection (backslashes replaced, then
+    `not urlparse(target).netloc and not urlparse(target).scheme`) so that the static
+    analysis recognises it as a sanitizer.
     """
-    if not value:
+    if not value or "\\" in value:
         return default
-    parsed = urlparse(value)
+    target = value.replace("\\", "")  # no-op after the check above; the documented sanitizer
     if (
-        not parsed.scheme
-        and not parsed.netloc
-        and value.startswith("/")
-        and not value.startswith("//")
-        and "://" not in value
-        and "\\" not in value
-        and not any(ord(c) < 0x20 or ord(c) == 0x7F for c in value)
+        not urlparse(target).netloc
+        and not urlparse(target).scheme
+        and target.startswith("/")
+        and not target.startswith("//")
+        and "://" not in target
+        and not any(ord(c) < 0x20 or ord(c) == 0x7F for c in target)
     ):
-        return value
+        return target
     return default
 
 
