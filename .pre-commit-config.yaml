@@ -1,6 +1,9 @@
 # Vendored third-party files must stay byte-identical to their upstream release.
 exclude: ^app/static/(js/htmx\.min\.js|fonts/|icons/.*\.png)$|^LICENSE$
 
+# Hooks run once, before the commit; only conventional-pre-commit runs on the message.
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
