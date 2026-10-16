@@ -75,3 +75,78 @@ async def test_users_who_accepted_are_not_bothered(client, db, make_clinic, make
     await make_user("new@ex.lu", clinic=await make_clinic())
     await login(client, "new@ex.lu")
     assert (await client.get("/")).status_code == 200
+
+
+# --- No redirect loop when both gates are pending (terms + forced password change) ----------
+
+
+async def _follow(client, url: str, max_hops: int = 5):
+    """GET with redirects followed by hand; fails on a loop instead of hanging."""
+    hops = [url]
+    for _ in range(max_hops):
+        response = await client.get(url)
+        if response.status_code != 303:
+            return response, hops
+        url = response.headers["location"]
+        hops.append(url)
+    raise AssertionError(f"redirect loop: {hops}")
+
+
+@pytest.fixture
+async def reset_legacy_user(db, make_clinic, make_user):
+    """Old account (terms never accepted) whose password an admin just reset."""
+    return await make_user(
+        "old@ex.lu", clinic=await make_clinic(), accepted_terms=False, must_change_password=True
+    )
+
+
+async def test_login_after_admin_reset_reaches_the_acceptance_page(client, db, reset_legacy_user):
+    login_response = await login(client, "old@ex.lu")
+    page, hops = await _follow(client, login_response.headers["location"])
+    assert page.status_code == 200 and hops[-1] == PAGE
+    assert 'name="accept_terms"' in page.text
+
+
+async def test_accepting_then_leads_to_the_forced_password_change(client, db, reset_legacy_user):
+    await login(client, "old@ex.lu")
+    response = await post_form(client, PAGE, {"accept_terms": "true"})
+    assert response.status_code == 303 and response.headers["location"] == "/"
+    page, hops = await _follow(client, "/")
+    assert page.status_code == 200 and hops[-1] == "/parametres"
+    assert "Vous devez choisir un nouveau mot de passe" in page.text
+    await db.refresh(reset_legacy_user)
+    assert reset_legacy_user.accepted_terms_at is not None
+
+
+async def test_refusal_stays_on_the_acceptance_page(client, db, reset_legacy_user):
+    await login(client, "old@ex.lu")
+    response = await post_form(client, PAGE, {})
+    assert response.status_code == 400 and "Vous devez accepter" in response.text
+    page, hops = await _follow(client, "/")
+    assert page.status_code == 200 and hops[-1] == PAGE
+
+
+async def test_legal_pages_static_and_health_stay_reachable(client, db, reset_legacy_user):
+    from app.static_assets import static_url
+
+    await login(client, "old@ex.lu")
+    for url in (
+        "/mentions-legales",
+        "/politique-confidentialite",
+        "/cgu",
+        "/health",
+        static_url("css/app.css"),
+    ):
+        response = await client.get(url)
+        assert response.status_code == 200, url
+    logout = await post_form(client, "/logout")
+    assert logout.status_code == 303 and logout.headers["location"] == "/login"
+
+
+async def test_other_authenticated_pages_redirect_to_the_acceptance_page(
+    client, db, reset_legacy_user
+):
+    await login(client, "old@ex.lu")
+    for url in ("/", "/conges", "/sur-place", "/resultats", "/parametres", "/mois"):
+        response = await client.get(url)
+        assert response.status_code == 303 and response.headers["location"] == PAGE, url

@@ -37,9 +37,12 @@ ACCOUNT_SETTINGS_PATH = "/parametres"
 # they accept on this page, it is the only one (besides logout) they can reach.
 TERMS_ACCEPTANCE_PATH = "/acceptation-cgu"
 TERMS_ALLOWED_PATHS = frozenset({TERMS_ACCEPTANCE_PATH, "/logout"})
+# Gates run in this order: terms acceptance first, then the forced password change. The
+# second gate must let the first gate's page through, or a user with both pending (e.g. an
+# old account after an admin password reset) bounces between the two pages forever.
 FORCED_CHANGE_ALLOWED_PATHS = frozenset(
     {ACCOUNT_SETTINGS_PATH, f"{ACCOUNT_SETTINGS_PATH}/mot-de-passe", "/logout"}
-)
+) | TERMS_ALLOWED_PATHS
 READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
