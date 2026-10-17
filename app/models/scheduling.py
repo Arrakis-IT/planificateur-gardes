@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Scheduling data: doctor vacations, on-site days, custom holidays, generations."""
+"""Scheduling data: doctor vacations and desiderata, on-site days, custom holidays,
+generations."""
 
+import enum
 import uuid
 from datetime import date, datetime
 
@@ -10,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Enum,
     ForeignKey,
     Index,
     Text,
@@ -54,6 +57,39 @@ class Holiday(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class DesiderataDay(UUIDPrimaryKeyMixin, Base):
+    """A day a doctor would rather not be on duty (soft constraint, unlike a vacation).
+
+    The scheduler avoids the doctor that day unless every available doctor has a desiderata
+    (see app/services/scheduler.py).
+    """
+
+    __tablename__ = "desiderata_day"
+    __table_args__ = (
+        UniqueConstraint("user_id", "date"),
+        Index("ix_desiderata_day_clinic_id_date", "clinic_id", "date"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(USER_FK, ondelete=CASCADE), nullable=False
+    )
+    # Denormalised from the user for clinic-scoped filtering; must match user.clinic_id.
+    clinic_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(CLINIC_FK, ondelete=CASCADE), nullable=False
+    )
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class DesiderataConflict(enum.StrEnum):
+    """Why the doctor of an assignment had a desiderata that day (`desiderata_conflict`)."""
+
+    GENERATED = "generated"  # the scheduler had no alternative
+    MANUAL = "manual"  # a manual edit put the doctor on the day
 
 
 class OnsiteDay(UUIDPrimaryKeyMixin, Base):
@@ -145,8 +181,24 @@ class Assignment(UUIDPrimaryKeyMixin, Base):
     # emailed PDF showed). On-site settings can change afterwards, so the changelog of the
     # next generation compares against this snapshot. NULL: generated before 0.4.0.
     onsite: Mapped[bool | None] = mapped_column(Boolean)
+    # Set when the doctor had a desiderata that day, as of the generation or the saved edit
+    # (later changes of the desiderata do not update it). NULL: no conflict.
+    desiderata_conflict: Mapped[DesiderataConflict | None] = mapped_column(
+        Enum(
+            DesiderataConflict,
+            name="desiderata_conflict",
+            native_enum=False,
+            length=20,
+            values_callable=lambda e: [m.value for m in e],
+        )
+    )
     edited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def desiderata_violation(self) -> bool:
+        """The doctor on duty had asked not to be that day."""
+        return self.desiderata_conflict is not None
 
 
 class AssignmentDraft(UUIDPrimaryKeyMixin, Base):

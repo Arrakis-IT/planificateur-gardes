@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Clinic-scoped data access for vacations, on-site days, custom holidays and generations.
+"""Clinic-scoped data access for vacations, desiderata, on-site days, custom holidays and
+generations.
 
 Every function takes the `clinic_id` of the request scope and filters on it.
 """
@@ -13,76 +14,98 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import and_, delete, func, not_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Assignment, Clinic, CustomHoliday, Generation, Holiday, OnsiteDay, User
+from app.models import (
+    Assignment,
+    Clinic,
+    CustomHoliday,
+    DesiderataConflict,
+    DesiderataDay,
+    Generation,
+    Holiday,
+    OnsiteDay,
+    User,
+)
 
-# --- Vacations (table `holiday`) -------------------------------------------------------
+# --- Vacations (table `holiday`) and desiderata (table `desiderata_day`) ----------------
+#
+# Both are per-user day marks with the same shape; the generic helpers take the model.
+
+type UserDayModel = type[Holiday] | type[DesiderataDay]
 
 
-async def list_user_vacations(
-    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+async def _list_user_days(
+    db: AsyncSession,
+    model: UserDayModel,
+    clinic_id: uuid.UUID,
+    user_id: uuid.UUID,
+    start: date,
+    end: date,
 ) -> set[date]:
-    """Vacation days of one user of the clinic within [start, end]."""
-    stmt = select(Holiday.date).where(
-        Holiday.clinic_id == clinic_id,
-        Holiday.user_id == user_id,
-        Holiday.date.between(start, end),
+    stmt = select(model.date).where(
+        model.clinic_id == clinic_id, model.user_id == user_id, model.date.between(start, end)
     )
     return set((await db.scalars(stmt)).all())
 
 
-async def toggle_user_vacation(
-    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, day: date
+async def _toggle_user_day(
+    db: AsyncSession, model: UserDayModel, clinic_id: uuid.UUID, user_id: uuid.UUID, day: date
 ) -> bool:
-    """Add or remove a vacation day. Returns True if the day is now a vacation day."""
     deleted = await db.execute(
-        delete(Holiday)
-        .where(Holiday.clinic_id == clinic_id, Holiday.user_id == user_id, Holiday.date == day)
-        .returning(Holiday.id)
+        delete(model)
+        .where(model.clinic_id == clinic_id, model.user_id == user_id, model.date == day)
+        .returning(model.id)
     )
     if deleted.first() is not None:
         return False
-    db.add(Holiday(clinic_id=clinic_id, user_id=user_id, date=day))
+    db.add(model(clinic_id=clinic_id, user_id=user_id, date=day))
     await db.flush()
     return True
 
 
-async def add_user_vacation_range(
-    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+async def _add_user_day_range(
+    db: AsyncSession,
+    model: UserDayModel,
+    clinic_id: uuid.UUID,
+    user_id: uuid.UUID,
+    start: date,
+    end: date,
 ) -> int:
-    """Mark every day of [start, end] as vacation (existing days kept). Returns days added."""
-    existing = await list_user_vacations(db, clinic_id, user_id, start, end)
+    existing = await _list_user_days(db, model, clinic_id, user_id, start, end)
     added = 0
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
         if day not in existing:
-            db.add(Holiday(clinic_id=clinic_id, user_id=user_id, date=day))
+            db.add(model(clinic_id=clinic_id, user_id=user_id, date=day))
             added += 1
     await db.flush()
     return added
 
 
-async def remove_user_vacation_range(
-    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+async def _remove_user_day_range(
+    db: AsyncSession,
+    model: UserDayModel,
+    clinic_id: uuid.UUID,
+    user_id: uuid.UUID,
+    start: date,
+    end: date,
 ) -> int:
-    """Remove every vacation day of [start, end]. Returns days removed."""
     result = await db.execute(
-        delete(Holiday)
+        delete(model)
         .where(
-            Holiday.clinic_id == clinic_id,
-            Holiday.user_id == user_id,
-            Holiday.date.between(start, end),
+            model.clinic_id == clinic_id,
+            model.user_id == user_id,
+            model.date.between(start, end),
         )
-        .returning(Holiday.id)
+        .returning(model.id)
     )
     return len(result.all())
 
 
-async def vacations_by_date(
-    db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
+async def _users_by_date(
+    db: AsyncSession, model: UserDayModel, clinic_id: uuid.UUID, start: date, end: date
 ) -> dict[date, set[uuid.UUID]]:
-    """date → ids of the clinic's users on vacation that day."""
-    stmt = select(Holiday.date, Holiday.user_id).where(
-        Holiday.clinic_id == clinic_id, Holiday.date.between(start, end)
+    stmt = select(model.date, model.user_id).where(
+        model.clinic_id == clinic_id, model.date.between(start, end)
     )
     result: dict[date, set[uuid.UUID]] = defaultdict(set)
     for day, user_id in (await db.execute(stmt)).all():
@@ -90,16 +113,99 @@ async def vacations_by_date(
     return dict(result)
 
 
+async def _day_counts(
+    db: AsyncSession, model: UserDayModel, clinic_id: uuid.UUID, start: date, end: date
+) -> dict[uuid.UUID, int]:
+    stmt = (
+        select(model.user_id, func.count(model.id))
+        .where(model.clinic_id == clinic_id, model.date.between(start, end))
+        .group_by(model.user_id)
+    )
+    return {user_id: int(count) for user_id, count in (await db.execute(stmt)).all()}
+
+
+async def list_user_vacations(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+) -> set[date]:
+    """Vacation days of one user of the clinic within [start, end]."""
+    return await _list_user_days(db, Holiday, clinic_id, user_id, start, end)
+
+
+async def toggle_user_vacation(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, day: date
+) -> bool:
+    """Add or remove a vacation day. Returns True if the day is now a vacation day."""
+    return await _toggle_user_day(db, Holiday, clinic_id, user_id, day)
+
+
+async def add_user_vacation_range(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+) -> int:
+    """Mark every day of [start, end] as vacation (existing days kept). Returns days added."""
+    return await _add_user_day_range(db, Holiday, clinic_id, user_id, start, end)
+
+
+async def remove_user_vacation_range(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+) -> int:
+    """Remove every vacation day of [start, end]. Returns days removed."""
+    return await _remove_user_day_range(db, Holiday, clinic_id, user_id, start, end)
+
+
+async def vacations_by_date(
+    db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
+) -> dict[date, set[uuid.UUID]]:
+    """date → ids of the clinic's users on vacation that day."""
+    return await _users_by_date(db, Holiday, clinic_id, start, end)
+
+
 async def vacation_counts(
     db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
 ) -> dict[uuid.UUID, int]:
     """user id → number of vacation days within [start, end]."""
-    stmt = (
-        select(Holiday.user_id, func.count(Holiday.id))
-        .where(Holiday.clinic_id == clinic_id, Holiday.date.between(start, end))
-        .group_by(Holiday.user_id)
-    )
-    return {user_id: int(count) for user_id, count in (await db.execute(stmt)).all()}
+    return await _day_counts(db, Holiday, clinic_id, start, end)
+
+
+async def list_user_desiderata(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+) -> set[date]:
+    """Desiderata days of one user of the clinic within [start, end]."""
+    return await _list_user_days(db, DesiderataDay, clinic_id, user_id, start, end)
+
+
+async def toggle_user_desiderata(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, day: date
+) -> bool:
+    """Add or remove a desiderata day. Returns True if the day is now a desiderata day."""
+    return await _toggle_user_day(db, DesiderataDay, clinic_id, user_id, day)
+
+
+async def add_user_desiderata_range(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+) -> int:
+    """Mark every day of [start, end] as desiderata (existing days kept). Returns days added."""
+    return await _add_user_day_range(db, DesiderataDay, clinic_id, user_id, start, end)
+
+
+async def remove_user_desiderata_range(
+    db: AsyncSession, clinic_id: uuid.UUID, user_id: uuid.UUID, start: date, end: date
+) -> int:
+    """Remove every desiderata day of [start, end]. Returns days removed."""
+    return await _remove_user_day_range(db, DesiderataDay, clinic_id, user_id, start, end)
+
+
+async def desiderata_by_date(
+    db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
+) -> dict[date, set[uuid.UUID]]:
+    """date → ids of the clinic's users with a desiderata that day."""
+    return await _users_by_date(db, DesiderataDay, clinic_id, start, end)
+
+
+async def desiderata_counts(
+    db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
+) -> dict[uuid.UUID, int]:
+    """user id → number of desiderata days within [start, end]."""
+    return await _day_counts(db, DesiderataDay, clinic_id, start, end)
 
 
 # --- On-site days ------------------------------------------------------------------------
@@ -179,10 +285,12 @@ async def create_generation(
     generated_by: uuid.UUID,
     assignments: dict[date, uuid.UUID | None],
     onsite_removed: set[date] | None = None,
+    desiderata_conflicts: dict[date, DesiderataConflict] | None = None,
 ) -> Generation:
     """Insert an active generation and its assignments (the caller archived the previous one).
 
     `onsite_removed`: days whose on-site mark is carried over as removed (locked months).
+    `desiderata_conflicts`: days whose doctor had a desiderata.
     """
     generation = Generation(
         clinic_id=clinic_id,
@@ -198,6 +306,7 @@ async def create_generation(
             date=day,
             user_id=user_id,
             onsite_removed=day in (onsite_removed or set()),
+            desiderata_conflict=(desiderata_conflicts or {}).get(day),
         )
         for day, user_id in assignments.items()
     )
