@@ -276,8 +276,8 @@ async def results_stats(
 ) -> ResultsStats:
     """Port of the standalone app's statistics table for a stored generation.
 
-    Vacations are loaded for the generation period only ('Congés' column scope, see
-    `app.services.scheduler.compute_stats`).
+    Vacations and desiderata are loaded for the generation period only ('Congés' and
+    'Desiderata' columns scope, see `app.services.scheduler.compute_stats`).
     """
     start, end = generation.period_from, generation.period_to
     cells, _ = await _effective_cells(db, clinic_id, start, end, with_draft)
@@ -292,6 +292,10 @@ async def results_stats(
         day: {code_of[uid] for uid in uids if uid in code_of}
         for day, uids in (await repo.vacations_by_date(db, clinic_id, start, end)).items()
     }
+    desiderata = {
+        day: {code_of[uid] for uid in uids if uid in code_of}
+        for day, uids in (await repo.desiderata_by_date(db, clinic_id, start, end)).items()
+    }
     onsite = await repo.list_onsite_days(db, clinic_id, start, end)
     effective_onsite = {d for d in onsite if not (d in cells and cells[d].onsite_removed)}
     request = ScheduleRequest(
@@ -301,6 +305,7 @@ async def results_stats(
         holidays=vacations,
         onsite=onsite,
         luxembourg_holidays=set(await public_holidays(db, clinic_id, start, end)),
+        desiderata=desiderata,
     )
     by_code = {
         day: (code_of.get(cell.user_id, UNASSIGNED) if cell.user_id else UNASSIGNED)

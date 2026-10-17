@@ -42,15 +42,16 @@ def locked_warning(locked: set[date] | frozenset[date]) -> str | None:
 async def _doctors_context(
     db: DbSession, clinic_id: uuid.UUID, period_from: date, period_to: date
 ) -> dict[str, Any]:
-    """Doctors with their vacation counts and on-site days for the chosen period."""
+    """Doctors with their vacation / desiderata counts and on-site days for the period."""
     valid = period_from <= period_to
     counts = await repo.vacation_counts(db, clinic_id, period_from, period_to) if valid else {}
+    wishes = await repo.desiderata_counts(db, clinic_id, period_from, period_to) if valid else {}
     onsite = await repo.list_onsite_days(db, clinic_id, period_from, period_to) if valid else set()
     doctors = await users_repo.list_clinic_users(db, clinic_id)
     locked = await locked_months(db, clinic_id, period_from, period_to) if valid else set()
     return {
         "locked_warning": locked_warning(locked),
-        "doctors": [(d, counts.get(d.id, 0)) for d in doctors],
+        "doctors": [(d, counts.get(d.id, 0), wishes.get(d.id, 0)) for d in doctors],
         "onsite_count": len(onsite),
         "period_days": (period_to - period_from).days + 1 if valid else 0,
     }

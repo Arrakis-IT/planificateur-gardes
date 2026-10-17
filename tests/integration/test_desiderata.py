@@ -190,3 +190,37 @@ async def test_ical_feed_has_duties_only(client, db, team):
     assert body.count("BEGIN:VEVENT") == 3  # April 1, 3, 5: NR's duties, conflict included
     assert "desiderata" not in body.lower()
     assert "DTSTART;VALUE=DATE:20270402" not in body
+
+
+# --- Statistics ---------------------------------------------------------------------------------
+
+
+async def test_desiderata_column_in_statistics(client, db, team):
+    clinic, nr, dt = team
+    await _generation(db, clinic, nr, dt)
+    for day in (APR[0], APR[3], date(2027, 6, 1)):  # June: outside the period
+        db.add(DesiderataDay(user_id=nr.id, clinic_id=clinic.id, date=day))
+    db.add(Holiday(user_id=dt.id, clinic_id=clinic.id, date=APR[4]))
+    await db.commit()
+    page = (await client.get("/resultats")).text
+    table = page.split('class="table stats-table"')[1].split("</table>")[0]
+    assert '<th class="num">Congés</th>\n        <th class="num">Desiderata</th>' in table
+    rows = {
+        name: row
+        for row in table.split("<tr>")[2:]
+        for name in ("Nicolas Rousseau", "Dominique Thill")
+        if name in row
+    }
+    assert (
+        '<td class="num">0</td>\n          <td class="num">2</td>\n        </tr>'
+        in rows["Nicolas Rousseau"]
+    )
+    assert (
+        '<td class="num">1</td>\n          <td class="num">0</td>\n        </tr>'
+        in rows["Dominique Thill"]
+    )
+    fragment = await client.get(
+        "/generer/medecins", params={"period_from": "2027-04-01", "period_to": "2027-06-30"}
+    )
+    assert '<th class="num">Desiderata</th>' in fragment.text
+    assert '<td class="num">0</td>\n        <td class="num">3</td>' in fragment.text  # NR
