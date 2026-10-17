@@ -8,7 +8,15 @@ from datetime import date, timedelta
 import pytest
 from sqlalchemy import func, select
 
-from app.models import Assignment, AuditLog, Generation, Holiday, OnsiteDay
+from app.models import (
+    Assignment,
+    AuditLog,
+    DesiderataConflict,
+    DesiderataDay,
+    Generation,
+    Holiday,
+    OnsiteDay,
+)
 from tests.conftest import login, post_form
 
 pytestmark = pytest.mark.db
@@ -114,3 +122,21 @@ async def test_unassigned_days_stored_as_null(client, db, clinic_team):
 async def test_results_without_generation(client, db, clinic_team):
     page = await client.get("/resultats")
     assert page.status_code == 200 and "Aucune planification générée" in page.text
+
+
+async def test_generation_avoids_desiderata_and_flags_forced_ones(client, db, clinic_team):
+    clinic, nr, dt, mc = clinic_team
+    avoided, forced = date(2027, 5, 19), date(2027, 5, 20)
+    db.add(DesiderataDay(user_id=nr.id, clinic_id=clinic.id, date=avoided))
+    for user in (nr, dt, mc):
+        db.add(DesiderataDay(user_id=user.id, clinic_id=clinic.id, date=forced))
+    await db.commit()
+    await post_form(client, "/generer", PERIOD)
+    assignments = {a.date: a for a in (await db.scalars(select(Assignment))).all()}
+    assert assignments[avoided].user_id != nr.id
+    assert assignments[avoided].desiderata_conflict is None
+    assert assignments[forced].user_id is not None
+    assert assignments[forced].desiderata_conflict == DesiderataConflict.GENERATED
+    assert [d for d, a in assignments.items() if a.desiderata_violation] == [forced]
+    entry = await db.scalar(select(AuditLog).where(AuditLog.action == "generation_created"))
+    assert entry.meta["desiderata_conflicts"] == 1

@@ -11,7 +11,7 @@ import anyio
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Generation, User
+from app.models import DesiderataConflict, Generation, User
 from app.repositories import drafts as drafts_repo
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
@@ -25,6 +25,7 @@ from app.services.scheduler import (
     ScheduleRequest,
     ScheduleStats,
     compute_stats,
+    desiderata_conflicts,
     generate_schedule,
     is_weekend,
 )
@@ -151,7 +152,8 @@ async def run_generation(
 
     Days of locked months keep the active generation's assignment (doctor and on-site
     removal); a locked day the active generation did not cover takes the scheduler's choice.
-    Locks of months outside the new period are released.
+    Locks of months outside the new period are released. Days whose doctor had a desiderata
+    are flagged (`assignment.desiderata_conflict`); kept locked days keep their flag.
     """
     validate_period(period_from, period_to)
     await repo.lock_clinic(db, clinic_id)
@@ -166,6 +168,12 @@ async def run_generation(
             await repo.vacations_by_date(db, clinic_id, period_from, period_to)
         ).items()
     }
+    desiderata = {
+        day: {code_of[uid] for uid in user_ids if uid in code_of}
+        for day, user_ids in (
+            await repo.desiderata_by_date(db, clinic_id, period_from, period_to)
+        ).items()
+    }
     schedule_request = ScheduleRequest(
         period_from=period_from,
         period_to=period_to,
@@ -173,6 +181,7 @@ async def run_generation(
         holidays=vacations,
         onsite=await repo.list_onsite_days(db, clinic_id, period_from, period_to),
         luxembourg_holidays=set(await public_holidays(db, clinic_id, period_from, period_to)),
+        desiderata=desiderata,
     )
     # CPU-bound (≈0.1–0.5 s): keep the event loop responsive.
     result = await anyio.to_thread.run_sync(generate_schedule, schedule_request)
@@ -181,6 +190,9 @@ async def run_generation(
     assignments = {
         day: (None if code == UNASSIGNED else user_of[code]) for day, code in result.items()
     }
+    conflicts = dict.fromkeys(
+        desiderata_conflicts(schedule_request, result), DesiderataConflict.GENERATED
+    )
     locked = await locked_months(db, clinic_id, period_from, period_to)
     onsite_removed: set[date] = set()
     if locked:
@@ -190,10 +202,13 @@ async def run_generation(
                 assignments[day] = kept.user_id
                 if kept.onsite_removed:
                     onsite_removed.add(day)
+                conflicts.pop(day, None)
+                if kept.desiderata_conflict is not None:
+                    conflicts[day] = kept.desiderata_conflict
     await drafts_repo.clear_drafts(db, clinic_id)  # edits of the old generation are moot
     previous_id = await repo.archive_active_generation(db, clinic_id)
     generation = await repo.create_generation(
-        db, clinic_id, period_from, period_to, actor.id, assignments, onsite_removed
+        db, clinic_id, period_from, period_to, actor.id, assignments, onsite_removed, conflicts
     )
     await repo.snapshot_onsite(db, clinic_id, generation.id)
     released = await release_locks_outside(
@@ -212,6 +227,7 @@ async def run_generation(
             "period_to": period_to.isoformat(),
             "doctors": len(doctors),
             "unassigned": sum(1 for user_id in assignments.values() if user_id is None),
+            "desiderata_conflicts": len(conflicts),
             "locked_months": sorted(m.strftime("%Y-%m") for m in locked),
             "archived_generation": str(previous_id) if previous_id else None,
         },

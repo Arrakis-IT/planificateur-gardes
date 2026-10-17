@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Scheduler port: correctness, balance, public holidays, reproducibility."""
+"""Scheduler port: correctness, balance, public holidays, desiderata, reproducibility."""
 
 import random
 from collections import defaultdict
@@ -18,6 +18,7 @@ from app.services.scheduler import (
     _Planificador,
     build_fechas,
     compute_stats,
+    desiderata_conflicts,
     generate_schedule,
 )
 
@@ -283,3 +284,112 @@ def test_invalid_requests(overrides, message):
 def test_single_day_period():
     request = ScheduleRequest(date(2027, 1, 4), date(2027, 1, 4), DOCTORS)
     assert len(generate_schedule(request, random.Random(0))) == 1
+
+
+# --- Desiderata -----------------------------------------------------------------------------
+
+
+def _every_day(codes: set[str], start: date = START, end: date = END) -> dict[date, set[str]]:
+    return {d: set(codes) for d in build_fechas(start, end)}
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_desiderata_avoided_when_an_alternative_exists(seed):
+    """NR wishes every day off: someone else is always available, so NR is never chosen."""
+    request = ScheduleRequest(
+        period_from=START, period_to=END, doctors=DOCTORS, desiderata=_every_day({"NR"})
+    )
+    result = generate_schedule(request, random.Random(seed))
+    assert "NR" not in result.values()
+    assert UNASSIGNED not in result.values()
+    assert desiderata_conflicts(request, result) == set()
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_desiderata_weighs_more_than_the_day_after(seed):
+    """Wednesday: MC has a desiderata, NR is on vacation; DT is on duty Tuesday and Thursday
+    (vacations of the others), yet DT takes Wednesday rather than MC."""
+    tue, wed, thu = date(2027, 3, 2), date(2027, 3, 3), date(2027, 3, 4)
+    request = ScheduleRequest(
+        period_from=tue,
+        period_to=thu,
+        doctors=DOCTORS,
+        holidays={tue: {"NR", "MC"}, wed: {"NR"}, thu: {"NR", "MC"}},
+        desiderata={wed: {"MC"}},
+    )
+    result = generate_schedule(request, random.Random(seed))
+    assert result == {tue: "DT", wed: "DT", thu: "DT"}
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_assigned_anyway_when_every_candidate_has_a_desiderata(seed):
+    request = ScheduleRequest(
+        period_from=START,
+        period_to=END,
+        doctors=DOCTORS,
+        desiderata=_every_day({"NR", "DT", "MC"}),
+    )
+    result = generate_schedule(request, random.Random(seed))
+    assert UNASSIGNED not in result.values()
+    assert desiderata_conflicts(request, result) == set(result)
+    # Fairness: the broken desiderata are spread as evenly as the duties themselves.
+    counts = [list(result.values()).count(d.code) for d in DOCTORS]
+    assert _spread(counts) <= 2
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_forced_desiderata_go_to_the_doctor_who_broke_fewest(seed):
+    """Only NR and DT, both with a desiderata on two weekdays; NR already broke one on
+    Monday (DT on vacation): Tuesday goes to DT."""
+    mon, tue = date(2027, 3, 1), date(2027, 3, 2)
+    request = ScheduleRequest(
+        period_from=mon,
+        period_to=tue,
+        doctors=DOCTORS[:2],
+        holidays={mon: {"DT"}},
+        desiderata={mon: {"NR"}, tue: {"NR", "DT"}},
+    )
+    result = generate_schedule(request, random.Random(seed))
+    assert result == {mon: "NR", tue: "DT"}
+    assert desiderata_conflicts(request, result) == {mon, tue}
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_weekend_desiderata_on_one_day_moves_the_whole_pair(seed):
+    sat, sun = date(2027, 3, 6), date(2027, 3, 7)
+    request = ScheduleRequest(
+        period_from=date(2027, 3, 1),
+        period_to=date(2027, 3, 21),
+        doctors=DOCTORS,
+        desiderata={sun: {"NR", "DT"}, date(2027, 3, 13): {"MC"}},
+    )
+    result = generate_schedule(request, random.Random(seed))
+    assert result[sat] == result[sun] == "MC"
+    assert result[date(2027, 3, 13)] != "MC"
+    assert desiderata_conflicts(request, result) == set()
+
+
+def test_desiderata_on_a_vacation_day_change_nothing():
+    """Vacation stays a hard constraint; a desiderata of the only free doctor is broken."""
+    day = date(2027, 3, 3)
+    request = ScheduleRequest(
+        period_from=day,
+        period_to=day,
+        doctors=DOCTORS,
+        holidays={day: {"NR", "DT"}},
+        desiderata={day: {"MC", "NR"}},
+    )
+    result = generate_schedule(request, random.Random(0))
+    assert result == {day: "MC"}
+    assert desiderata_conflicts(request, result) == {day}
+
+
+def test_desiderata_counted_in_stats():
+    request = ScheduleRequest(
+        period_from=START,
+        period_to=END,
+        doctors=DOCTORS,
+        desiderata={date(2027, 3, 3): {"MC", "NR"}, date(2027, 3, 4): {"MC"}},
+    )
+    stats = compute_stats(request, generate_schedule(request, random.Random(0)))
+    assert {s.code: s.desiderata_days for s in stats.doctors} == {"NR": 1, "DT": 0, "MC": 2}

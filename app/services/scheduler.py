@@ -65,6 +65,23 @@ Design decisions
   break the balance of the primary metrics. This matches the behaviour of the original
   Excel/VBA/JS versions.
 
+Desiderata (extension, not in the JS)
+-------------------------------------
+A desiderata is a day a doctor would rather not be on duty: a soft constraint, unlike a
+vacation. Wherever the JS picks among available doctors (random draws of phases 1–2, both
+passes of phases 3–4), the candidates are first narrowed by `_preferir_sin_desiderata`:
+
+* if at least one candidate has no desiderata on the day(s) at stake, the doctors with one
+  are left out — even when that means a doctor on duty the day before / after (a
+  desiderata weighs more than the strict pass);
+* if every candidate has one, the doctors with the fewest desiderata already broken in the
+  period (the run so far) remain, and the usual heuristic decides among them.
+
+A weekend pair is at stake for a doctor with a desiderata on Saturday or Sunday. Without
+any desiderata the narrowing returns its input unchanged and draws no random number, so
+the output distribution is exactly the JS one. The best-of-100 criteria are unchanged.
+A day whose doctor has a desiderata is a conflict (`desiderata_conflicts`).
+
 Luxembourg public holidays
 --------------------------
 The JavaScript has no notion of public holidays; the port keeps it that way, which already
@@ -79,7 +96,7 @@ gives the behaviour required by the brief (§5.2):
 """
 
 import random
-from collections.abc import Container, Mapping
+from collections.abc import Callable, Collection, Container, Mapping
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -108,6 +125,7 @@ class ScheduleRequest:
     `holidays` are the doctors' vacations: date → codes of doctors away that day.
     `luxembourg_holidays` are public holidays (official + clinic custom); they only
     affect statistics (see module docstring).
+    `desiderata`: date → codes of doctors who would rather not be on duty that day.
     """
 
     period_from: date
@@ -116,6 +134,7 @@ class ScheduleRequest:
     holidays: Mapping[date, set[str]] = field(default_factory=dict)
     onsite: set[date] = field(default_factory=set)
     luxembourg_holidays: set[date] = field(default_factory=set)
+    desiderata: Mapping[date, set[str]] = field(default_factory=dict)
 
     def validate(self) -> None:
         """Raise ScheduleInputError if the request cannot be scheduled."""
@@ -156,6 +175,7 @@ class _Planificador:
         self.doctors = [d.code for d in request.doctors]
         self.vacaciones = {d: frozenset(codes) for d, codes in request.holidays.items()}
         self.onsite = frozenset(request.onsite)
+        self.desiderata = {d: frozenset(codes) for d, codes in request.desiderata.items() if codes}
         self.rng = rng
 
     # --- Helpers (JS: medicoEstaDeVacaciones … calcularPenalizacionContinuidad) ---
@@ -170,11 +190,53 @@ class _Planificador:
     def medico_esta_de_vacaciones(self, code: str, d: date) -> bool:
         return code in self.vacaciones.get(d, ())
 
-    def obtener_medico_disponible_al_azar(self, d: date) -> str:
+    def obtener_medico_disponible_al_azar(
+        self, d: date, preferir: Callable[[list[str]], list[str]] | None = None
+    ) -> str:
         available = [c for c in self.doctors if not self.medico_esta_de_vacaciones(c, d)]
+        if preferir is not None:
+            available = preferir(available)
         if not available:
             return ""
         return available[self.rand_int(len(available))]
+
+    # --- Desiderata (not in the JS, see module docstring) ---------------------------------
+
+    def tiene_desiderata(self, code: str, d: date) -> bool:
+        return code in self.desiderata.get(d, ())
+
+    def contar_desideratas_rotas(self, asign: list[str], fechas: list[date], code: str) -> int:
+        """Days of the run so far where `code` is on duty despite a desiderata."""
+        return sum(
+            1
+            for i in range(len(fechas))
+            if asign[i] == code and self.tiene_desiderata(code, fechas[i])
+        )
+
+    def _preferir_sin_desiderata(
+        self,
+        candidatos: list[str],
+        dias: Collection[date],
+        asign: list[str],
+        fechas: list[date],
+        viable: Callable[[str], bool] | None = None,
+    ) -> list[str]:
+        """Narrow `candidatos` (order kept): without desiderata on `dias` if possible, else
+        the fewest broken so far. `viable` (first weekend) tells which candidates can really
+        take the slot; with none viable the input is returned for the caller's fallback."""
+        con = {c for c in candidatos if any(self.tiene_desiderata(c, d) for d in dias)}
+        if not con:
+            return candidatos
+        es_viable = viable or (lambda _c: True)
+        sin = [c for c in candidatos if c not in con]
+        if any(es_viable(c) for c in sin):
+            return sin
+        viables = [c for c in candidatos if es_viable(c)]
+        if not viables:
+            return candidatos
+        rotas = {c: self.contar_desideratas_rotas(asign, fechas, c) for c in viables}
+        minimo = min(rotas.values())
+        return [c for c in viables if rotas[c] == minimo]
 
     def buscar_indice_medico(self, code: str) -> int:
         try:
@@ -268,14 +330,30 @@ class _Planificador:
                 break
         if sab_idx == -1:
             return
-        if dom_idx == -1:
-            asign[sab_idx] = self.obtener_medico_disponible_al_azar(fechas[sab_idx]) or UNASSIGNED
+        sab, dom = fechas[sab_idx], fechas[dom_idx] if dom_idx != -1 else None
+
+        def preferir(dias: tuple[date, ...]) -> Callable[[list[str]], list[str]]:
+            return lambda cands: self._preferir_sin_desiderata(cands, dias, asign, fechas)
+
+        if dom is None:
+            asign[sab_idx] = (
+                self.obtener_medico_disponible_al_azar(sab, preferir((sab,))) or UNASSIGNED
+            )
             return
+
+        def preferir_par(cands: list[str]) -> list[str]:
+            return self._preferir_sin_desiderata(
+                cands,
+                (sab, dom),
+                asign,
+                fechas,
+                viable=lambda c: not self.medico_esta_de_vacaciones(c, dom),
+            )
 
         tried: set[str] = set()
         attempts = 0
         while attempts < len(self.doctors):
-            med = self.obtener_medico_disponible_al_azar(fechas[sab_idx])
+            med = self.obtener_medico_disponible_al_azar(sab, preferir_par)
             if not med:
                 asign[sab_idx] = UNASSIGNED
                 asign[dom_idx] = UNASSIGNED
@@ -285,14 +363,14 @@ class _Planificador:
                 continue
             tried.add(med)
             attempts += 1
-            if not self.medico_esta_de_vacaciones(med, fechas[dom_idx]):
+            if not self.medico_esta_de_vacaciones(med, dom):
                 asign[sab_idx] = med
                 asign[dom_idx] = med
                 return
         # No doctor available for both days
-        sab_med = self.obtener_medico_disponible_al_azar(fechas[sab_idx])
+        sab_med = self.obtener_medico_disponible_al_azar(sab, preferir((sab,)))
         asign[sab_idx] = sab_med or UNASSIGNED
-        dom_med = self.obtener_medico_disponible_al_azar(fechas[dom_idx])
+        dom_med = self.obtener_medico_disponible_al_azar(dom, preferir((dom,)))
         asign[dom_idx] = dom_med or UNASSIGNED
 
     # --- Phase 2: weekends ------------------------------------------------------------
@@ -317,6 +395,9 @@ class _Planificador:
                     if not self.medico_esta_de_vacaciones(c, fechas[sab_idx])
                     and not self.medico_esta_de_vacaciones(c, fechas[dom_idx])
                 ]
+                candidates = self._preferir_sin_desiderata(
+                    candidates, (fechas[sab_idx], fechas[dom_idx]), asign, fechas
+                )
                 prev = historico[-1] if historico else ""
                 filtered = [c for c in candidates if c != prev]
 
@@ -391,15 +472,28 @@ class _Planificador:
     # --- Phases 3 and 4: queue-based filling ----------------------------------------------
 
     def _elegir_medico(
-        self, asign: list[str], idx: int, d: date, cola: list[str], cargas_act: list[int]
+        self,
+        asign: list[str],
+        fechas: list[date],
+        idx: int,
+        cola: list[str],
+        cargas_act: list[int],
     ) -> str:
-        """Strict pass then flexible pass, shared verbatim by phases 3 and 4 in the JS."""
+        """Strict pass then flexible pass, shared verbatim by phases 3 and 4 in the JS.
+
+        "Available" is narrowed by the desiderata first (not in the JS)."""
+        d = fechas[idx]
+        disponibles = set(
+            self._preferir_sin_desiderata(
+                [m for m in cola if not self.medico_esta_de_vacaciones(m, d)], (d,), asign, fechas
+            )
+        )
         mejor_med, carga_min = "", _BIG
         # Strict pass
         for med in cola:
-            if not self.medico_esta_de_vacaciones(
-                med, d
-            ) and not self.medico_asignado_dia_anterior_o_posterior(asign, idx, med):
+            if med in disponibles and not self.medico_asignado_dia_anterior_o_posterior(
+                asign, idx, med
+            ):
                 i = self.buscar_indice_medico(med)
                 if cargas_act[i] < carga_min:
                     mejor_med = med
@@ -408,7 +502,7 @@ class _Planificador:
         if not mejor_med:
             carga_min = _BIG
             for med in cola:
-                if not self.medico_esta_de_vacaciones(med, d):
+                if med in disponibles:
                     i = self.buscar_indice_medico(med)
                     if cargas_act[i] < carga_min:
                         mejor_med = med
@@ -420,7 +514,7 @@ class _Planificador:
         for idx in range(len(fechas)):
             if self.es_on_site(fechas[idx]) and not asign[idx]:
                 cargas_act = self.contar_on_site_por_medico(asign, fechas)
-                mejor_med = self._elegir_medico(asign, idx, fechas[idx], cola, cargas_act)
+                mejor_med = self._elegir_medico(asign, fechas, idx, cola, cargas_act)
                 if mejor_med:
                     asign[idx] = mejor_med
                     cola = [c for c in cola if c != mejor_med]
@@ -445,7 +539,7 @@ class _Planificador:
         for idx in range(len(fechas)):
             if not asign[idx] and not self.es_on_site(fechas[idx]):
                 cargas_act = self.contar_dias_por_medico(asign)
-                mejor_med = self._elegir_medico(asign, idx, fechas[idx], cola, cargas_act)
+                mejor_med = self._elegir_medico(asign, fechas, idx, cola, cargas_act)
                 if mejor_med:
                     asign[idx] = mejor_med
                     cola = [c for c in cola if c != mejor_med]
@@ -496,6 +590,11 @@ def generate_schedule(
     return dict(zip(fechas, asign, strict=True))
 
 
+def desiderata_conflicts(request: ScheduleRequest, schedule: Mapping[date, str]) -> set[date]:
+    """Days whose doctor had a desiderata (the scheduler had no alternative)."""
+    return {d for d, code in schedule.items() if code in request.desiderata.get(d, ())}
+
+
 @dataclass(frozen=True)
 class DoctorStats:
     """Per-doctor counters, as in the standalone app's statistics table."""
@@ -505,6 +604,7 @@ class DoctorStats:
     weekend: int
     onsite: int
     vacation_days: int
+    desiderata_days: int = 0
 
 
 @dataclass(frozen=True)
@@ -543,7 +643,8 @@ def compute_stats(
     semester-scoped planning view; a doctor's vacations outside the planning window are
     irrelevant to the current schedule's balance. (`vacation_days` counts the entries of
     `request.holidays`; callers pass the vacations of the period only, see
-    `app.services.planning.results_stats`.)
+    `app.services.planning.results_stats`.) 'Desiderata' counts `request.desiderata` the same
+    way.
     """
     onsite_days = request.onsite if onsite is None else onsite
     public = set(request.luxembourg_holidays)
@@ -552,6 +653,7 @@ def compute_stats(
     weekend = dict.fromkeys(codes, 0)
     on = dict.fromkeys(codes, 0)
     vacation = {c: sum(1 for d, away in request.holidays.items() if c in away) for c in codes}
+    desiderata = {c: sum(1 for d, wish in request.desiderata.items() if c in wish) for c in codes}
     total_week = total_weekend = total_onsite = unassigned = 0
     for d in build_fechas(request.period_from, request.period_to):
         code = assignments.get(d)
@@ -573,7 +675,9 @@ def compute_stats(
         else:
             unassigned += 1
     return ScheduleStats(
-        doctors=[DoctorStats(c, week[c], weekend[c], on[c], vacation[c]) for c in codes],
+        doctors=[
+            DoctorStats(c, week[c], weekend[c], on[c], vacation[c], desiderata[c]) for c in codes
+        ],
         total_week=total_week,
         total_weekend=total_weekend,
         total_onsite=total_onsite,

@@ -10,7 +10,16 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 
-from app.models import Assignment, AuditLog, Generation, Holiday, MonthLock, OnsiteDay, User
+from app.models import (
+    Assignment,
+    AuditLog,
+    DesiderataConflict,
+    Generation,
+    Holiday,
+    MonthLock,
+    OnsiteDay,
+    User,
+)
 from app.repositories import scheduling as scheduling_repo
 from app.services.locks import OUT_OF_RANGE
 from app.services.scheduler import UNASSIGNED, ScheduleRequest
@@ -358,6 +367,7 @@ async def test_regeneration_keeps_locked_months(client, db, team, mailer, plan):
         select(Assignment).where(Assignment.generation_id == first.id, Assignment.date == april)
     )
     removed.onsite_removed = True
+    removed.desiderata_conflict = DesiderataConflict.MANUAL
     await db.commit()
     await _lock(client, "2027-04")
 
@@ -383,6 +393,7 @@ async def test_regeneration_keeps_locked_months(client, db, team, mailer, plan):
     }
     assert all(cells[date(2027, 4, d)].user_id == admin.id for d in range(1, 31))
     assert cells[april].onsite_removed is True
+    assert cells[april].desiderata_conflict == DesiderataConflict.MANUAL  # kept with the cell
     assert cells[date(2027, 5, 3)].user_id == doctor.id
     assert cells[date(2027, 3, 20)].user_id == doctor.id
 
