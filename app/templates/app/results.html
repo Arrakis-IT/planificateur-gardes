@@ -54,6 +54,27 @@
     {% if s.unassigned %}<strong class="err">{{ s.unassigned }} jour(s) sans médecin disponible (XX).</strong>{% endif %}</p>
 </section>
 
+{% if desiderata_conflicts %}
+<section class="panel" id="conflits-desiderata">
+  <h2>Conflits avec desiderata</h2>
+  <p class="muted">Jours attribués à un médecin qui avait demandé à ne pas être de garde.</p>
+  <div class="table-scroll">
+  <table class="table conflicts-table">
+    <thead><tr><th>Date</th><th>Médecin</th><th></th></tr></thead>
+    <tbody>
+      {% for day in desiderata_conflicts %}
+      <tr>
+        <td><span class="capitalize">{{ day.day|long_date }}</span></td>
+        <td>{{ m.doctor_chip(day.doctor) }} {{ day.doctor.full_name }}{% if day.desiderata_conflict == 'manual' %} <span class="muted small">(affectation manuelle)</span>{% endif %}</td>
+        <td><a class="button" href="#jour-{{ day.day.isoformat() }}">Voir dans le calendrier</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
 <section class="panel">
   <div class="panel-header">
     <h2>Vue mensuelle</h2>

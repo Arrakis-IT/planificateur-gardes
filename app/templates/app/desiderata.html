@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Desiderata{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-header">
+    <h1>Mes desiderata</h1>
+    {% with base='/desiderata' %}{% include "partials/_month_window_nav.html" %}{% endwith %}
+  </div>
+  <p class="muted">Jours où vous préféreriez ne pas être de garde. Contrairement aux congés, la
+    génération les évite mais peut vous affecter ce jour si aucun autre médecin n'est disponible.
+    Cliquez sur un jour pour l'ajouter ou le retirer.</p>
+  {% include "partials/_desiderata_calendar.html" %}
+</section>
+
+<section class="panel">
+  <h2>Ajouter ou retirer une période</h2>
+  <form method="post" action="/desiderata/periode" class="row">
+    {{ csrf_input(request) }}
+    <input type="hidden" name="debut" value="{{ debut }}">
+    <div><label for="start">Du</label><input type="date" id="start" name="start" required></div>
+    <div><label for="end">Au</label><input type="date" id="end" name="end" required></div>
+    <button type="submit" name="action" value="add" class="primary">Ajouter</button>
+    <button type="submit" name="action" value="remove">Retirer</button>
+  </form>
+</section>
+{% endblock %}

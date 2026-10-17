@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2026 Juan Manuel Suárez – Arrakis IT Services
 
-"""Vacations of the current user (/conges) and on-site days of the clinic (/sur-place).
+"""Vacations (/conges) and desiderata (/desiderata) of the current user, on-site days of the
+clinic (/sur-place).
 
 Calendars are forms whose day buttons submit `date`; HTMX swaps the calendar fragment,
 and without JavaScript the same form falls back to POST + redirect.
@@ -138,6 +139,102 @@ async def vacation_range(
     audit.record(
         db,
         "vacation_range_removed" if form.action == "remove" else "vacation_range_added",
+        request=request,
+        user_id=auth.user.id,
+        clinic_id=clinic_id,
+        target_type="user",
+        target_id=auth.user.id,
+        meta={"start": form.start.isoformat(), "end": form.end.isoformat(), "days": count},
+    )
+    await db.commit()
+    response = RedirectResponse(target, status_code=303)
+    set_flash(response, message)
+    return response
+
+
+# --- Desiderata ---------------------------------------------------------------------------
+# Same pages as the vacations: a desiderata is a day the doctor would rather not be on duty
+# (soft constraint of the scheduler). Each doctor sees and edits only their own.
+
+
+async def _desiderata_page(
+    request: Request, auth: ClinicAuth, clinic_id: uuid.UUID, db: DbSession, period: cal.Period
+) -> Response:
+    marked = await repo.list_user_desiderata(db, clinic_id, auth.user.id, period.start, period.end)
+    context = await _calendar_context(db, clinic_id, period, marked)
+    template = "partials/_desiderata_calendar.html" if _is_htmx(request) else "app/desiderata.html"
+    return render(request, template, context)
+
+
+@router.get("/desiderata")
+async def desiderata(
+    request: Request,
+    auth: ClinicAuth,
+    clinic_id: ClinicScope,
+    db: DbSession,
+    debut: str | None = None,
+) -> Response:
+    """The current user's desiderata days over the month window."""
+    return await _desiderata_page(request, auth, clinic_id, db, _window(debut))
+
+
+@router.post("/desiderata/toggle")
+async def desiderata_toggle(
+    request: Request,
+    form: Annotated[DayForm, Form()],
+    auth: ClinicAuth,
+    clinic_id: ClinicScope,
+    db: DbSession,
+) -> Response:
+    """Add / remove one desiderata day of the current user."""
+    await ensure_unlocked(db, clinic_id, form.date)
+    added = await repo.toggle_user_desiderata(db, clinic_id, auth.user.id, form.date)
+    audit.record(
+        db,
+        "desiderata_added" if added else "desiderata_removed",
+        request=request,
+        user_id=auth.user.id,
+        clinic_id=clinic_id,
+        target_type="user",
+        target_id=auth.user.id,
+        meta={"date": form.date.isoformat()},
+    )
+    await db.commit()
+    period = _window(form.debut)
+    if _is_htmx(request):
+        return await _desiderata_page(request, auth, clinic_id, db, period)
+    return RedirectResponse(f"/desiderata?debut={cal.month_key(period.start)}", status_code=303)
+
+
+@router.post("/desiderata/periode")
+async def desiderata_range(
+    request: Request,
+    form: Annotated[RangeForm, Form()],
+    auth: ClinicAuth,
+    clinic_id: ClinicScope,
+    db: DbSession,
+) -> Response:
+    """Add (or remove) a whole range of desiderata days."""
+    period = _window(form.debut)
+    target = f"/desiderata?debut={cal.month_key(period.start)}"
+    if form.start > form.end:
+        response = RedirectResponse(target, status_code=303)
+        set_flash(response, "La date de début doit précéder la date de fin.", "error")
+        return response
+    await ensure_unlocked(db, clinic_id, form.start, form.end)
+    if form.action == "remove":
+        count = await repo.remove_user_desiderata_range(
+            db, clinic_id, auth.user.id, form.start, form.end
+        )
+        message = f"{count} jour(s) de desiderata retiré(s)."
+    else:
+        count = await repo.add_user_desiderata_range(
+            db, clinic_id, auth.user.id, form.start, form.end
+        )
+        message = f"{count} jour(s) de desiderata ajouté(s)."
+    audit.record(
+        db,
+        "desiderata_range_removed" if form.action == "remove" else "desiderata_range_added",
         request=request,
         user_id=auth.user.id,
         clinic_id=clinic_id,

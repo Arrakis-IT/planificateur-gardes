@@ -152,6 +152,11 @@ async def generate(
     response = RedirectResponse("/resultats", status_code=303)
     message = "Planification générée. Le PDF est envoyé par e-mail à tous les médecins."
     notices = [message, locked_warning(run.locked_months)]
+    if run.desiderata_conflicts:
+        notices.append(
+            f"{run.desiderata_conflicts} jour(s) attribué(s) malgré une desiderata, faute "
+            "d'alternative : voir « Conflits avec desiderata »."
+        )
     if run.released_months:
         released = months_label(set(run.released_months))
         notices.append(f"Verrouillage retiré (hors de la nouvelle période) : {released}.")
@@ -185,6 +190,7 @@ async def results(
     # Edit links return to this very page (with its filter); none in read-only mode.
     current_page = request.url.path + (f"?{request.url.query}" if request.url.query else "")
     return_to = None if auth.read_only else current_page
+    conflicts = [view for view in days.values() if view.desiderata_conflict and view.doctor]
     return render(
         request,
         "app/results.html",
@@ -199,6 +205,7 @@ async def results(
             "today": cal.today_local(),
             "draft_count": draft_count,
             "return_to": return_to,
+            "desiderata_conflicts": conflicts,
             "locked_months": await locked_months(
                 db, clinic_id, generation.period_from, generation.period_to
             ),

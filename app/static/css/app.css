@@ -32,6 +32,11 @@
   --onsite-soft: #fff8e0;
   --holiday: #d0d0d0;
   --weekend: #f0ede5;
+  /* Desiderata: amber, distinct from the grey vacations (contrast checked in
+     tests/unit/test_desiderata_contrast.py). */
+  --desiderata: #8a5300;
+  --desiderata-soft: #fff4dc;
+  --desiderata-stripe: rgba(245, 158, 11, 0.3);
 
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-heading: 'Fraunces', Georgia, serif;
@@ -389,6 +394,14 @@ button.cal-day.in-range:not(.locked):hover { border-color: var(--accent); backgr
 .cal-day.weekend.in-range { background: var(--weekend); }
 .cal-day.holiday { background: var(--holiday) !important; border-color: var(--ink-soft); }
 .cal-day.onsite { background: var(--onsite) !important; border-color: var(--onsite); font-weight: 600; }
+/* Desiderata: faint amber dots + a small asterisk in the corner (vacations are plain grey). */
+.cal-day.desiderata {
+  position: relative; font-weight: 600; border-color: var(--desiderata) !important;
+  background: var(--desiderata-soft) radial-gradient(circle, var(--desiderata-stripe) 1px, transparent 1.5px) 0 0 / 5px 5px !important;
+}
+.cal-day.desiderata::after {
+  content: "✱"; position: absolute; top: 1px; right: 2px; font-size: 8px; line-height: 1; color: var(--desiderata);
+}
 .holiday-summary {
   margin-top: 12px; font-size: 12px; color: var(--ink-soft); padding: 8px 12px;
   background: var(--accent-soft); border-radius: 3px;
@@ -410,6 +423,26 @@ a.month-cell { color: inherit; text-decoration: none; }
 .month-cell.clickable { cursor: pointer; transition: all 0.1s; }
 .month-cell.clickable:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .month-cell.drafted { border: 2px dashed var(--warn); }
+/* On duty despite a desiderata: translucent amber stripes over the cell, ⚠️ in the corner.
+   The doctor chip keeps its own opaque color, so its white initials are unaffected. */
+.month-cell { position: relative; }
+.month-cell.desiderata-conflict {
+  border-color: var(--desiderata);
+  background-image: repeating-linear-gradient(-45deg, var(--desiderata-stripe) 0 6px, transparent 6px 12px);
+}
+.month-cell.desiderata-conflict.locked-cell {
+  background-image: repeating-linear-gradient(-45deg, var(--desiderata-stripe) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(45deg, transparent 0 6px, rgba(0, 0, 0, 0.05) 6px 12px);
+}
+.month-cell.filtered-out.desiderata-conflict { background-image: none; border-color: var(--line); }
+.month-cell.filtered-out .conflict-icon { visibility: hidden; }
+.conflict-icon { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 1; }
+.month-cell:target { outline: 3px solid var(--desiderata); outline-offset: 1px; }
+.swatch-desiderata-conflict {
+  border-color: var(--desiderata);
+  background: var(--surface) repeating-linear-gradient(-45deg, var(--desiderata-stripe) 0 3px, transparent 3px 6px);
+}
+.conflicts-table td { vertical-align: middle; }
 
 .modal-backdrop {
   position: fixed; inset: 0; background: rgba(26, 26, 26, 0.5); display: flex;

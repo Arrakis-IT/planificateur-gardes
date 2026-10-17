@@ -50,6 +50,8 @@ class DayView:
     drafted: bool = False  # shows a not yet saved edit of the shared draft
     onsite_setting: bool = False  # marked on-site in the clinic settings
     locked: bool = False  # in a month locked by the group admin (read-only)
+    # The doctor had a desiderata that day (stored flag, see Assignment.desiderata_conflict).
+    desiderata_conflict: DesiderataConflict | None = None
 
     @property
     def unassigned(self) -> bool:
@@ -64,21 +66,32 @@ async def public_holidays(
     return holidays_between(start, end, await repo.custom_holidays(db, clinic_id, start, end))
 
 
+@dataclass(frozen=True)
+class _Cell:
+    user_id: uuid.UUID | None
+    onsite_removed: bool
+    desiderata_conflict: DesiderataConflict | None
+
+
 async def _effective_cells(
     db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date, with_draft: bool
-) -> tuple[dict[date, tuple[uuid.UUID | None, bool]], set[date]]:
-    """date → (doctor id, on-site removed) from the active generation, draft applied if asked.
+) -> tuple[dict[date, _Cell], set[date]]:
+    """Cells of the active generation, draft applied if asked.
 
     Also returns the dates overridden by the draft.
     """
     assignments = await repo.active_assignments(db, clinic_id, start, end)
-    cells = {d: (a.user_id, a.onsite_removed) for d, a in assignments.items()}
+    cells = {
+        d: _Cell(a.user_id, a.onsite_removed, a.desiderata_conflict) for d, a in assignments.items()
+    }
     drafted: set[date] = set()
     if with_draft and assignments:
         generation_id = next(iter(assignments.values())).generation_id
         for d, draft in (await drafts_repo.drafts_by_date(db, clinic_id, generation_id)).items():
             if start <= d <= end:
-                cells[d] = (draft.user_id, draft.onsite_removed)
+                saved = cells[d]
+                conflict = saved.desiderata_conflict if draft.user_id == saved.user_id else None
+                cells[d] = _Cell(draft.user_id, draft.onsite_removed, conflict)
                 drafted.add(d)
     return cells, drafted
 
@@ -104,17 +117,18 @@ async def build_days(
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
         cell = cells.get(day)
-        removed = cell is not None and cell[1]
+        removed = cell is not None and cell.onsite_removed
         days[day] = DayView(
             day=day,
             weekend=is_weekend(day) or day in holidays,
             holiday=holidays.get(day),
             onsite=day in onsite and not removed,
             planned=cell is not None,
-            doctor=users.get(cell[0]) if cell is not None and cell[0] else None,
+            doctor=users.get(cell.user_id) if cell is not None and cell.user_id else None,
             drafted=day in drafted,
             onsite_setting=day in onsite,
             locked=is_locked(day, locked),
+            desiderata_conflict=cell.desiderata_conflict if cell is not None else None,
         )
     return days
 
@@ -130,6 +144,7 @@ class GenerationRun:
     previous_id: uuid.UUID | None
     locked_months: frozenset[date] = frozenset()  # kept as they were (first days)
     released_months: frozenset[date] = frozenset()  # locks dropped: outside the new period
+    desiderata_conflicts: int = 0  # days given to a doctor despite a desiderata
 
 
 def validate_period(period_from: date, period_to: date) -> None:
@@ -232,7 +247,9 @@ async def run_generation(
             "archived_generation": str(previous_id) if previous_id else None,
         },
     )
-    return GenerationRun(generation, previous_id, frozenset(locked), frozenset(released))
+    return GenerationRun(
+        generation, previous_id, frozenset(locked), frozenset(released), len(conflicts)
+    )
 
 
 # --- Results statistics -----------------------------------------------------------------------
@@ -257,7 +274,7 @@ async def results_stats(
     start, end = generation.period_from, generation.period_to
     cells, _ = await _effective_cells(db, clinic_id, start, end, with_draft)
     all_users = await repo.users_by_id(db, clinic_id)
-    involved = {user_id for user_id, _ in cells.values() if user_id}
+    involved = {cell.user_id for cell in cells.values() if cell.user_id}
     users = sorted(
         (u for u in all_users.values() if u.active or u.id in involved),
         key=lambda u: u.full_name.lower(),
@@ -268,7 +285,7 @@ async def results_stats(
         for day, uids in (await repo.vacations_by_date(db, clinic_id, start, end)).items()
     }
     onsite = await repo.list_onsite_days(db, clinic_id, start, end)
-    effective_onsite = {d for d in onsite if not (d in cells and cells[d][1])}
+    effective_onsite = {d for d in onsite if not (d in cells and cells[d].onsite_removed)}
     request = ScheduleRequest(
         period_from=start,
         period_to=end,
@@ -278,8 +295,8 @@ async def results_stats(
         luxembourg_holidays=set(await public_holidays(db, clinic_id, start, end)),
     )
     by_code = {
-        day: (code_of.get(user_id, UNASSIGNED) if user_id else UNASSIGNED)
-        for day, (user_id, _) in cells.items()
+        day: (code_of.get(cell.user_id, UNASSIGNED) if cell.user_id else UNASSIGNED)
+        for day, cell in cells.items()
     }
     stats = compute_stats(request, by_code, onsite=effective_onsite)
     return ResultsStats(stats=stats, users={u.doctor_code: u for u in users})

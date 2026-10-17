@@ -16,6 +16,11 @@
 Mois {{ d|month_label }} verrouillé : aucune modification possible.
 {%- endmacro %}
 
+{# Tooltip of a day given to a doctor despite their desiderata. #}
+{% macro desiderata_message(day) -%}
+{{ day.doctor.full_name }} avait demandé à ne pas être de garde ce jour (desiderata). {{ 'Affectation manuelle.' if day.desiderata_conflict == 'manual' else 'Aucune alternative disponible.' }}
+{%- endmacro %}
+
 {% macro lock_badge() -%}
   <span class="badge lock-badge" title="Mois verrouillé : aucune modification possible">🔒 Verrouillé</span>
 {%- endmacro %}
@@ -36,12 +41,14 @@ Mois {{ d|month_label }} verrouillé : aucune modification possible.
            can be edited (a plain div gives no feedback at all on touch screens). #}
         {% set locked_tap = return_to and day.planned and day.locked %}
         {% set tag = 'a' if editable else ('button' if locked_tap else 'div') %}
-        <{{ tag }} class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}{{ ' drafted' if day.drafted }}{{ ' clickable' if editable }}{{ ' locked-cell' if day.locked }}"
-             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}{{ ' — modification non enregistrée' if day.drafted }}{{ ' — mois verrouillé' if day.locked }}"
+        {% set conflict = day.desiderata_conflict and day.doctor %}
+        <{{ tag }} class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}{{ ' drafted' if day.drafted }}{{ ' clickable' if editable }}{{ ' locked-cell' if day.locked }}{{ ' desiderata-conflict' if conflict }}" id="jour-{{ d.isoformat() }}"
+             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}{{ ' — modification non enregistrée' if day.drafted }}{{ ' — mois verrouillé' if day.locked }}{{ ' — ' ~ desiderata_message(day) if conflict }}"
              {% if editable %}href="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}"
              hx-get="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}" hx-target="#modal" hx-swap="innerHTML"{% endif %}
              {% if locked_tap %}type="button" aria-disabled="true" data-locked-message="{{ locked_message(d) }}"{% endif %}>
           <div class="cell-date">{{ d.day }}</div>
+          {% if conflict %}<span class="conflict-icon" aria-hidden="true">⚠️</span>{% endif %}
           {% if day.doctor %}
             <div class="cell-doctor" style="--doctor-color: {{ day.doctor.color }}">{{ day.doctor.doctor_code }}</div>
           {% elif day.unassigned %}
