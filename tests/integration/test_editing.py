@@ -12,7 +12,16 @@ from httpx import ASGITransport, AsyncClient
 from pypdf import PdfReader
 from sqlalchemy import func, select
 
-from app.models import Assignment, AssignmentDraft, AuditLog, Generation, Holiday, OnsiteDay
+from app.models import (
+    Assignment,
+    AssignmentDraft,
+    AuditLog,
+    DesiderataConflict,
+    DesiderataDay,
+    Generation,
+    Holiday,
+    OnsiteDay,
+)
 from app.repositories import scheduling as repo
 from app.services.presence import PresentUser, hub
 from tests.conftest import TEST_CSRF_COOKIE, login, post_form, with_csrf
@@ -328,3 +337,54 @@ async def test_edits_never_reach_another_clinic(client, db, team, make_clinic, m
     assert _events(other_listener) == []
     generations = (await db.scalars(select(Generation))).all()
     assert all(g.is_active for g in generations)
+
+
+# --- Desiderata in the modal and on save ----------------------------------------------------
+
+DESIDERATA_WARNING = "Ce médecin a demandé à ne pas être de garde ce jour (desiderata)."
+
+
+async def test_modal_warns_like_vacations_for_desiderata(client, db, team):
+    clinic, _, dt, _ = team
+    db.add(DesiderataDay(user_id=dt.id, clinic_id=clinic.id, date=D1))
+    await db.commit()
+    modal = (await client.get(f"/resultats/jour/{D1}", headers=HTMX)).text
+    dt_option = modal.split('value="DT"')[1].split("</button>")[0]
+    assert f'<span class="opt-tag">{DESIDERATA_WARNING}</span>' in dt_option
+    mc_option = modal.split('value="MC"')[1].split("</button>")[0]
+    assert '<span class="opt-tag">en congés</span>' in mc_option  # same badge, same place
+    assert modal.count(DESIDERATA_WARNING) == 1
+    other_day = (await client.get(f"/resultats/jour/{D2}", headers=HTMX)).text
+    assert DESIDERATA_WARNING not in other_day
+
+
+async def test_manual_assignment_despite_desiderata_is_flagged(client, db, team):
+    clinic, _, dt, _ = team
+    db.add(DesiderataDay(user_id=dt.id, clinic_id=clinic.id, date=D1))
+    await db.commit()
+    await post_form(client, f"/resultats/jour/{D1}", {"doctor": "DT"})
+    preview = (await client.get("/mois?mois=2027-05")).text
+    assert (
+        "Dominique Thill avait demandé à ne pas être de garde ce jour (desiderata). "
+        "Affectation manuelle." in preview
+    )  # drafted cell, before saving
+
+    await post_form(client, "/resultats/enregistrer", {"retour": "/resultats"})
+    cell = await _assignment(db, D1)
+    assert cell.user_id == dt.id and cell.desiderata_conflict == DesiderataConflict.MANUAL
+    meta = await db.scalar(select(AuditLog.meta).where(AuditLog.action == "assignment_edited"))
+    assert meta["desiderata"] is True
+    results = (await client.get("/resultats")).text
+    assert "Conflits avec desiderata" in results and "(affectation manuelle)" in results
+
+
+async def test_reassigning_a_conflict_clears_the_flag(client, db, team):
+    _, nr, _, _ = team
+    cell = await _assignment(db, D2)
+    cell.desiderata_conflict = DesiderataConflict.GENERATED
+    await db.commit()
+    await post_form(client, f"/resultats/jour/{D2}", {"doctor": "NR"})
+    await post_form(client, "/resultats/enregistrer", {"retour": "/resultats"})
+    await db.refresh(cell)
+    assert cell.user_id == nr.id and cell.desiderata_conflict is None
+    assert "Conflits avec desiderata" not in (await client.get("/resultats")).text

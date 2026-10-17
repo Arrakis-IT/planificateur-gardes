@@ -87,12 +87,20 @@ async def _effective_cells(
     drafted: set[date] = set()
     if with_draft and assignments:
         generation_id = next(iter(assignments.values())).generation_id
-        for d, draft in (await drafts_repo.drafts_by_date(db, clinic_id, generation_id)).items():
-            if start <= d <= end:
-                saved = cells[d]
-                conflict = saved.desiderata_conflict if draft.user_id == saved.user_id else None
-                cells[d] = _Cell(draft.user_id, draft.onsite_removed, conflict)
-                drafted.add(d)
+        drafts = {
+            d: draft
+            for d, draft in (await drafts_repo.drafts_by_date(db, clinic_id, generation_id)).items()
+            if start <= d <= end
+        }
+        wishes = await repo.desiderata_by_date(db, clinic_id, start, end) if drafts else {}
+        for d, draft in drafts.items():
+            saved = cells[d]
+            conflict = saved.desiderata_conflict
+            if draft.user_id != saved.user_id:  # as "Enregistrer" will store it
+                manual = draft.user_id is not None and draft.user_id in wishes.get(d, set())
+                conflict = DesiderataConflict.MANUAL if manual else None
+            cells[d] = _Cell(draft.user_id, draft.onsite_removed, conflict)
+            drafted.add(d)
     return cells, drafted
 
 

@@ -5,12 +5,13 @@
   {{ csrf_input(request) }}
   <input type="hidden" name="retour" value="{{ return_to }}">
   <div class="modal-options">
-    {% for doctor, on_vacation in doctors %}
+    {% for doctor, on_vacation, has_desiderata in doctors %}
       <button type="submit" name="doctor" value="{{ doctor.doctor_code }}"
               class="modal-option{{ ' selected' if cell.user_id == doctor.id }}">
         <span><span class="code" style="--doctor-color: {{ doctor.color }}">{{ doctor.doctor_code }}</span>
           <span class="opt-name">{{ doctor.full_name }}</span></span>
-        {% if on_vacation %}<span class="opt-tag">en congés</span>{% endif %}
+        {% if on_vacation %}<span class="opt-tag">en congés</span>
+        {% elif has_desiderata %}<span class="opt-tag">Ce médecin a demandé à ne pas être de garde ce jour (desiderata).</span>{% endif %}
       </button>
     {% endfor %}
     <button type="submit" name="doctor" value="XX" class="modal-option none{{ ' selected' if not cell.user_id }}">

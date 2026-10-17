@@ -92,11 +92,12 @@ async def cell_modal(
         raise HTTPException(404, NOT_IN_PLANNING) from None
     view = (await build_days(db, clinic_id, day, day, with_draft=True))[day]
     away = (await repo.vacations_by_date(db, clinic_id, day, day)).get(day, set())
+    wishes = (await repo.desiderata_by_date(db, clinic_id, day, day)).get(day, set())
     doctors = await users_repo.list_clinic_users(db, clinic_id)
     context = {
         "day": view,
         "cell": cell,
-        "doctors": [(d, d.id in away) for d in doctors],
+        "doctors": [(d, d.id in away, d.id in wishes) for d in doctors],
         "return_to": _return_to(retour),
     }
     template = "partials/_day_modal.html" if _is_htmx(request) else "app/day_edit.html"

@@ -471,6 +471,7 @@ dialog.modal { position: static; inset: auto; margin: 0; color: var(--ink); }
 .modal-option.none { color: var(--err); font-style: italic; }
 .opt-name { margin-left: 8px; }
 .opt-tag { font-size: 11px; color: var(--warn); background: var(--warn-soft); padding: 2px 6px; border-radius: 2px; }
+.modal-option .opt-tag { max-width: 55%; margin-left: 8px; text-align: right; }
 .modal-divider { border: none; border-top: 1px solid var(--line); margin: 12px 0; }
 .modal-onsite-row {
   display: flex; align-items: center; justify-content: space-between; padding: 10px 12px;

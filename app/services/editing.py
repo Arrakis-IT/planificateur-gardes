@@ -17,7 +17,7 @@ from fastapi import Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Assignment, AssignmentDraft, Generation, User
+from app.models import Assignment, AssignmentDraft, DesiderataConflict, Generation, User
 from app.repositories import drafts as drafts_repo
 from app.repositories import scheduling as repo
 from app.repositories import users as users_repo
@@ -169,7 +169,9 @@ async def save_draft(
 ) -> SaveResult:
     """Apply the draft to the active generation, one audit entry per changed cell.
 
-    Caller commits (then broadcasts `draft_cleared` and emails the PDF).
+    A cell whose doctor changes gets `desiderata_conflict` = manual when the new doctor has a
+    desiderata that day (none otherwise). Caller commits (then broadcasts `draft_cleared`
+    and emails the PDF).
     """
     await repo.lock_clinic(db, clinic_id)
     generation = await repo.get_active_generation(db, clinic_id)
@@ -185,6 +187,9 @@ async def save_draft(
             raise MonthLockedError(blocked[0].replace(day=1))
     assignments = await _assignments_for(db, generation.id, list(drafts))
     codes = {u.id: u.doctor_code for u in (await repo.users_by_id(db, clinic_id)).values()}
+    wishes = (
+        await repo.desiderata_by_date(db, clinic_id, min(drafts), max(drafts)) if drafts else {}
+    )
     now = datetime.now(UTC)
     changed = 0
     for day, draft in sorted(drafts.items()):
@@ -193,6 +198,11 @@ async def save_draft(
         if assignment is None or change is None:
             continue
         action, meta = change
+        if draft.user_id != assignment.user_id:
+            manual = draft.user_id is not None and draft.user_id in wishes.get(day, set())
+            assignment.desiderata_conflict = DesiderataConflict.MANUAL if manual else None
+            if manual:
+                meta["desiderata"] = True
         audit.record(
             db,
             action,
