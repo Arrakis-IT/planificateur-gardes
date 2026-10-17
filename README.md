@@ -99,6 +99,12 @@ by side. Its output distribution was checked against the original JavaScript.
 4. **Remaining days**: same queue heuristic on the total number of duties; best of 100, then
    the fewest runs of ≥ 3 consecutive days.
 
+**Desiderata** (days a doctor would rather not be on duty) are a soft constraint added on top
+of the port: at every choice, doctors with a desiderata are left out when someone else is
+available — this weighs more than avoiding the day before / after — and, when everyone has
+one, the doctor with the fewest broken desiderata in the period wins. Without desiderata the
+output is the original one. Forced days are flagged and listed in the results.
+
 The algorithm balances weekend pairs, on-site days and total duties. Luxembourg public holidays
 (official + clinic-specific) are assigned as single days and count as a Sunday in the
 statistics. Details: [module docstring](app/services/scheduler.py).
@@ -111,7 +117,7 @@ Week-end, Sur place, Congés). Les jours fériés tombant en semaine sont compt�
 la planification, alors que la version Excel/VBA d'origine comptait tous les jours de congés,
 quelle que soit leur date : des statistiques par période sont plus parlantes pour une
 planification semestrielle, et les congés hors période n'ont aucune incidence sur l'équilibre du
-planning en cours.
+planning en cours. La colonne « Desiderata » suit la même règle.
 
 ## Security design (summary)
 

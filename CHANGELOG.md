@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/). Images: `ghcr.io/arrakis-it/planificateur-gardes:<version>`.
 
+## [0.12.0] - 2026-10-17
+
+### Added
+- Desiderata: days a doctor would rather not be on duty (`/desiderata`, own days only,
+  audited). Soft constraint: the generator leaves out doctors with a desiderata whenever
+  someone else can take the day (even if that doctor was on duty the day before / after);
+  when everyone has one, the doctor with the fewest broken desiderata in the period gets
+  it. Without desiderata the generator output is unchanged.
+- Days given despite a desiderata are stored (`assignment.desiderata_conflict`: generated
+  or manual), shown with amber stripes and a tooltip in the calendar, and listed under
+  "Conflits avec desiderata" in the results.
+- The cell modal flags doctors with a desiderata like doctors on vacation.
+- "Desiderata" column in the statistics (results, PDF, Générer).
+
+### Changed
+- Privacy policy: desiderata added to the processed data.
+
 ## [0.11.4] - 2026-10-16
 
 ### Fixed
@@ -127,6 +144,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - First release.
 
+[0.12.0]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.1...v0.11.2
