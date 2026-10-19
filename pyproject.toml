@@ -23,7 +23,7 @@ sqlalchemy = { version = "^2.1", extras = ["asyncio"] }
 asyncpg = "~0.32"
 alembic = "^1.20"
 pydantic = "^2.14"
-pydantic-settings = "^2.15"
+pydantic-settings = "^2.16"
 jinja2 = "^3.1"
 python-multipart = "~0.0.32"
 argon2-cffi = "^25.1"
@@ -34,7 +34,7 @@ email-validator = "^2.3"
 python-dateutil = "^2.9"
 weasyprint = "^70.0"
 sse-starlette = "^3.5"
-sentry-sdk = { version = "^2.71", extras = ["fastapi"] }
+sentry-sdk = { version = "^2.72", extras = ["fastapi"] }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
