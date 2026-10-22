@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/). Images: `ghcr.io/arrakis-it/planificateur-gardes:<version>`.
 
+## [0.12.1] - 2026-10-22
+
+### Security
+- certifi 2026.10.19 (was 2026.7.22): emSign CA removed after 8 compromised intermediate
+  certificates.
+- Pillow 13.0.0 (was 12.3.0, used by WeasyPrint): fixes 29 CVEs, the worst a heap buffer
+  overflow leading to remote code execution.
+
 ## [0.12.0] - 2026-10-17
 
 ### Added
@@ -144,6 +152,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - First release.
 
+[0.12.1]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.2...v0.11.3
