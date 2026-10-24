@@ -32,7 +32,7 @@ RUN apt-get update \
         libpango-1.0-0 \
         libpangoft2-1.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir --only-binary=:all: --upgrade "pip==26.2.1" \
+    && pip install --no-cache-dir --only-binary=:all: --upgrade "pip==26.2.2" \
     && groupadd --system app \
     && useradd --system --gid app --home /app app
 WORKDIR /app
@@ -54,7 +54,7 @@ RUN python -m venv "$POETRY_HOME" \
     && "$POETRY_HOME/bin/pip" install --only-binary=:all: "poetry==${POETRY_VERSION}" \
     && ln -s "$POETRY_HOME/bin/poetry" /usr/local/bin/poetry \
     && python -m venv "$VIRTUAL_ENV" \
-    && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir --only-binary=:all: --upgrade "pip==26.2.1"
+    && "$VIRTUAL_ENV/bin/pip" install --no-cache-dir --only-binary=:all: --upgrade "pip==26.2.2"
 
 COPY pyproject.toml poetry.lock ./
 RUN --mount=type=cache,target=/root/.cache/pypoetry \
