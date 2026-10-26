@@ -4,6 +4,7 @@
 """Jinja2 environments (web pages and emails) and rendering helpers, incl. flash messages."""
 
 import json
+import logging
 import uuid
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from markupsafe import Markup
+from sqlalchemy import inspect
 from starlette.responses import Response
 
 from app.config import get_settings
@@ -21,6 +23,8 @@ from app.services import calendar as cal
 from app.services.security import derive_key
 from app.services.turnstile import FORM_FIELD as TURNSTILE_FIELD
 from app.static_assets import static_url
+
+logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 FLASH_COOKIE_NAME = "flash"
@@ -156,6 +160,30 @@ def _read_flash(request: Request) -> dict[str, str] | None:
     return None
 
 
+def _is_loaded(obj: object | None) -> bool:
+    """Is an ORM object usable without database I/O? A full rollback expires every
+    object of the session; reading one from a (sync) template would then lazy-load it and
+    fail with MissingGreenlet."""
+    if obj is None:
+        return True
+    state = inspect(obj, raiseerr=False)
+    return state is None or not state.expired_attributes
+
+
+def template_auth(request: Request) -> Any:
+    """The request's AuthContext for templates, or None when its user / clinic objects are
+    no longer loaded: the page (an error page above all) then renders as for an anonymous
+    visitor instead of crashing."""
+    auth = getattr(request.state, "auth", None)
+    if auth is None:
+        return None
+    objects = [auth.real_user, auth.user, auth.viewing_clinic]
+    if all(_is_loaded(o) for o in objects) and _is_loaded(auth.user.clinic):
+        return auth
+    logger.warning("Rendering %s without auth context: expired ORM objects", request.url.path)
+    return None
+
+
 def render(
     request: Request,
     name: str,
@@ -166,7 +194,7 @@ def render(
     settings = get_settings()
     ctx: dict[str, Any] = {
         "flash": _read_flash(request),
-        "auth": getattr(request.state, "auth", None),
+        "auth": template_auth(request),
         "turnstile_enabled": settings.turnstile_enabled,
         "turnstile_site_key": settings.turnstile_site_key,
     }

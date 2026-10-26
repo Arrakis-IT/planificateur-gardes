@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -104,6 +104,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.info("Application stopped")
 
 
+UNEXPECTED_ERROR = "Une erreur inattendue s'est produite. Veuillez réessayer."
+
+
 def _error_page(request: Request, status_code: int, message: str) -> Response:
     return render(
         request, "errors/error.html", {"status_code": status_code, "message": message}, status_code
@@ -134,6 +137,16 @@ def _register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def handle_validation(request: Request, _exc: RequestValidationError) -> Response:
         return _error_page(request, 400, "Données envoyées invalides.")
+
+    @app.exception_handler(Exception)
+    async def handle_unexpected(request: Request, _exc: Exception) -> Response:
+        # Called by Starlette's ServerErrorMiddleware, which re-raises the exception
+        # afterwards: it is still logged and reported to Sentry.
+        try:
+            return _error_page(request, 500, UNEXPECTED_ERROR)
+        except Exception:
+            logger.exception("Error page rendering failed")
+            return PlainTextResponse("Erreur interne du serveur.", status_code=500)
 
     @app.exception_handler(RateLimitExceeded)
     async def handle_rate_limit(request: Request, _exc: RateLimitExceeded) -> Response:
