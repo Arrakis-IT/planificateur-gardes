@@ -146,19 +146,23 @@ async def generate(
 
     A period meeting active generations first answers 409 with the confirmation dialog
     (transfer or recalculate the months they hold).
+
+    The run happens in a savepoint: on a refusal only its own changes are undone. A full
+    `db.rollback()` would expire every loaded object, the logged-in user included, and the
+    page rendered next would then lazy-load in a sync template (MissingGreenlet → 500).
     """
     try:
-        run = await run_generation(
-            db,
-            clinic_id,
-            auth.user,
-            form.period_from,
-            form.period_to,
-            request,
-            form.overlap_mode,
-        )
+        async with db.begin_nested():
+            run = await run_generation(
+                db,
+                clinic_id,
+                auth.user,
+                form.period_from,
+                form.period_to,
+                request,
+                form.overlap_mode,
+            )
     except OverlapConfirmationRequired as exc:
-        await db.rollback()
         return await _generate_page(
             request,
             clinic_id,
@@ -169,7 +173,6 @@ async def generate(
             409,
         )
     except GenerationError as exc:
-        await db.rollback()
         return await _generate_page(
             request, clinic_id, db, form.period_from, form.period_to, {"error": str(exc)}, 400
         )

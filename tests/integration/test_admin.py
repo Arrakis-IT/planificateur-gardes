@@ -139,6 +139,22 @@ async def test_create_users_assigns_codes_and_colors(admin_client, db, make_clin
     assert not any(u.must_change_password for u in users)  # they choose it via the invitation
 
 
+async def test_duplicate_email_race_renders_the_form(admin_client, db, make_clinic, monkeypatch):
+    """The unique index catches an e-mail created meanwhile (pre-check passed): the form is
+    shown again (400), not a 500 from the superadmin expired by a full rollback."""
+    clinic = await make_clinic()
+    data = {"email": "race@ex.lu", "full_name": "Anne Dupont", "clinic_id": str(clinic.id)}
+    assert (await post_form(admin_client, "/admin/users", data)).status_code == 303
+
+    async def no_user(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr("app.routers.admin.users_repo.get_user_by_email", no_user)
+    response = await post_form(admin_client, "/admin/users", data)
+    assert response.status_code == 400 and "existe déjà" in response.text
+    assert "Juan Admin" in response.text or "Déconnexion" in response.text  # full layout
+
+
 async def test_create_user_validation_errors(admin_client, db, make_clinic):
     clinic = await make_clinic()
     base = {"email": "a@ex.lu", "full_name": "Anne Dupont"}

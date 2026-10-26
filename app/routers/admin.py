@@ -260,20 +260,22 @@ async def user_create(
         return await fail("Un utilisateur avec cette adresse e-mail existe déjà.")
 
     try:
-        user = await users_repo.create_user(
-            db,
-            email=form.email,
-            full_name=form.full_name,
-            # Random, never disclosed: the account cannot log in until the invitation is used.
-            password=generate_token(),
-            clinic_id=clinic_id,
-            is_superadmin=form.is_superadmin,
-            must_change_password=False,
-        )
+        # Savepoint: a full rollback would expire the superadmin rendered by `fail`.
+        async with db.begin_nested():
+            user = await users_repo.create_user(
+                db,
+                email=form.email,
+                full_name=form.full_name,
+                # Random, never disclosed: the account cannot log in until the invitation is
+                # used.
+                password=generate_token(),
+                clinic_id=clinic_id,
+                is_superadmin=form.is_superadmin,
+                must_change_password=False,
+            )
     except DoctorCodeError as exc:
         return await fail(str(exc))
     except IntegrityError:
-        await db.rollback()
         return await fail("Un utilisateur avec cette adresse e-mail existe déjà.")
 
     if clinic_id is not None and await get_group_admin(db, clinic_id) is None:

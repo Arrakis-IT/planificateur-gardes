@@ -315,3 +315,93 @@ async def test_stats_ignore_days_held_by_another_generation(db, team):
     stats = (await planning.results_stats(db, clinic.id, second)).stats
     assert stats.unassigned == 0
     assert stats.total_week + stats.total_weekend == len(_days(NOV, JUN_END))
+
+
+# --- Regression (0.13.1): confirmation dialog after a refused run -------------------------------
+
+
+@pytest.fixture
+async def two_actives(db, team):
+    """A: October–December (October locked), B: January–March 2027, both active."""
+    clinic, nr, _, first = team
+    second = await repo.create_generation(
+        db,
+        clinic.id,
+        JAN,
+        date(2027, 3, 31),
+        nr.id,
+        {d: nr.id for d in _days(JAN, date(2027, 3, 31))},
+    )
+    await _lock(db, clinic, OCT)
+    return clinic, first, second
+
+
+async def _as(client, who, make_user, nr):
+    if who == "superadmin":  # its User row is not reloaded by the clinic queries
+        await make_user("root@ex.lu", "Root", is_superadmin=True)
+        await login(client, "root@ex.lu")
+        assert (await post_form(client, f"/admin/users/{nr.id}/impersonate")).status_code == 303
+
+
+@pytest.mark.parametrize("who", ["doctor", "superadmin"])
+async def test_overlap_of_two_generations_answers_409_with_both_periods(
+    client, db, team, two_actives, make_user, who
+):
+    _, nr, _, _ = team
+    clinic, _, _ = two_actives
+    await _as(client, who, make_user, nr)
+    period = {"period_from": "2026-10-01", "period_to": "2027-06-30"}
+    response = await post_form(client, "/generer", period)
+    assert response.status_code == 409
+    assert "Chevauchement avec une planification active" in response.text
+    assert "novembre 2026, décembre 2026" in response.text
+    assert "(période du 01/10/2026 au 31/12/2026)" in response.text
+    assert "janvier 2027, février 2027, mars 2027" in response.text
+    assert "(période du 01/01/2027 au 31/03/2027)" in response.text
+    assert "🔒 Les mois verrouillés (octobre 2026)" in response.text
+    # The dialog posts the same period back with the chosen mode.
+    assert 'name="period_from" value="2026-10-01"' in response.text
+    assert 'name="period_to" value="2027-06-30"' in response.text
+    db.expunge_all()
+    assert len(await repo.active_generations(db, clinic.id)) == 2  # nothing changed
+
+
+@pytest.mark.parametrize("who", ["doctor", "superadmin"])
+async def test_overlap_of_two_generations_transferred(
+    client, db, team, two_actives, make_user, who
+):
+    _, nr, _, _ = team
+    clinic, first, second = two_actives
+    await _as(client, who, make_user, nr)
+    period = {"period_from": "2026-10-01", "period_to": "2027-06-30", "overlap_mode": "move"}
+    response = await post_form(client, "/generer", period)
+    assert response.status_code == 303
+    db.expunge_all()
+    (kept, third) = await repo.active_generations(db, clinic.id)
+    assert kept.id == first.id and (kept.period_from, kept.period_to) == (
+        OCT,
+        date(2026, 10, 31),
+    )
+    assert not (await db.get(Generation, second.id)).active  # emptied
+    assert await _dates(db, third) == _days(NOV, JUN_END)
+    # Transferred as they are, including the manual edit of 10 November.
+    assert (await _cell(db, third.id, date(2026, 11, 10))).edited_by == nr.id
+
+
+@pytest.mark.parametrize("who", ["doctor", "superadmin"])
+async def test_overlap_of_two_generations_recalculated(
+    client, db, team, two_actives, make_user, who
+):
+    _, nr, _, _ = team
+    clinic, first, second = two_actives
+    await _as(client, who, make_user, nr)
+    period = {"period_from": "2026-10-01", "period_to": "2027-06-30", "overlap_mode": "recalc"}
+    response = await post_form(client, "/generer", period)
+    assert response.status_code == 303
+    db.expunge_all()
+    (kept, third) = await repo.active_generations(db, clinic.id)
+    assert kept.id == first.id and kept.period_to == date(2026, 10, 31)
+    old = await db.get(Generation, second.id)
+    assert not old.active and await _dates(db, old) == _days(JAN, date(2027, 3, 31))
+    assert await _dates(db, third) == _days(NOV, JUN_END)
+    assert (await _cell(db, third.id, date(2026, 11, 10))).edited_by is None  # recalculated
