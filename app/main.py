@@ -3,9 +3,11 @@
 
 """FastAPI application factory."""
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Request
@@ -39,8 +41,10 @@ from app.routers import (
     sse,
 )
 from app.routers import app as app_router
+from app.services import calendar as cal
 from app.services.bootstrap import ensure_initial_superadmin
 from app.services.locks import MonthLockedError
+from app.services.planning import archive_expired
 from app.services.presence import hub
 from app.templating import render
 from app.utils.logging import configure_logging
@@ -48,6 +52,37 @@ from app.utils.logging import configure_logging
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+async def archive_expired_generations() -> int:
+    """Archive the active generations whose whole period is past (all clinics). Returns
+    how many were archived."""
+    async with get_sessionmaker()() as db:
+        archived = await archive_expired(db, cal.today_local())
+        await db.commit()
+    if archived:
+        logger.info("Archived %s expired generation(s)", len(archived))
+    return len(archived)
+
+
+def _seconds_until_next_run(now: datetime | None = None) -> float:
+    """Seconds until 00:05 Luxembourg time (just after the day changes)."""
+    now = now or datetime.now(cal.CLINIC_TZ)
+    local = now.astimezone(cal.CLINIC_TZ)
+    target = local.replace(hour=0, minute=5, second=0, microsecond=0)
+    if target <= local:
+        target += timedelta(days=1)
+    return (target - local).total_seconds()
+
+
+async def _archive_expired_daily() -> None:
+    """At startup, then every night: a generation expires when its last day is past."""
+    while True:
+        try:
+            await archive_expired_generations()
+        except Exception:
+            logger.exception("Archiving expired generations failed")
+        await asyncio.sleep(_seconds_until_next_run())
 
 
 @asynccontextmanager
@@ -61,7 +96,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # Never prevent startup (healthcheck will report DB problems).
         logger.exception("Superadmin bootstrap failed")
     hub.start()
+    archiver = asyncio.create_task(_archive_expired_daily())
     yield
+    archiver.cancel()
     await hub.stop()
     await dispose_engine()
     logger.info("Application stopped")
