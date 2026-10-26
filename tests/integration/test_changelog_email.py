@@ -53,7 +53,7 @@ def plan(monkeypatch):
 async def _generate(client, start: date, end: date, *, replace: bool = True) -> None:
     data = {"period_from": start.isoformat(), "period_to": end.isoformat()}
     if replace:
-        data["confirm_overwrite"] = "true"
+        data["overlap_mode"] = "recalc"
     response = await post_form(client, "/generer", data)
     assert response.status_code == 303, response.text
 
@@ -94,7 +94,8 @@ async def test_overlap_without_changes(client, db, team, mailer, plan):
     email = _last_email(mailer)
     for part in (email.text, email.html):
         assert TITLE in part
-        assert "Période précédente : du 01/04/2027 au 10/04/2027" in part
+        # Previous side: the recalculated days (1–4 stay in the first generation).
+        assert "Période précédente : du 05/04/2027 au 10/04/2027" in part
         assert "Nouvelle période : du 05/04/2027 au 20/04/2027" in part
         assert "Aucun changement sur la période partagée." in part
 
@@ -139,7 +140,7 @@ async def test_overlap_with_every_kind_of_change(client, db, team, mailer, plan)
     email = _last_email(mailer)
     text_lines = [line for line in email.text.splitlines() if line.startswith(("- ", "! "))]
     assert text_lines == [f"{'!' if red else '-'} {day} : {entry}" for day, entry, red in expected]
-    assert "Période précédente : du 01/04/2027 au 12/04/2027" in email.text
+    assert "Période précédente : du 03/04/2027 au 12/04/2027" in email.text
     assert "« ! »" in email.text  # legend shown when some lines are marked
 
     html_items = [line.strip() for line in email.html.splitlines() if "<li " in line]

@@ -21,15 +21,10 @@
 
     {% include "partials/_generate_doctors.html" %}
 
-    {% if active %}
-      <div class="alert alert-warn">
-        Une planification est active ({{ active.period_from|short_date }} – {{ active.period_to|short_date }}).
-        La générer à nouveau l'archivera.
-        <div class="checkbox">
-          <input type="checkbox" id="confirm_overwrite" name="confirm_overwrite" value="true">
-          <label for="confirm_overwrite">Remplacer la planification active</label>
-        </div>
-      </div>
+    {% if actives %}
+      <p class="muted small">Planification(s) active(s) :
+        {% for g in actives %}{{ g.period_from|short_date }} – {{ g.period_to|short_date }}{{ ' · ' if not loop.last }}{% endfor %}.
+        Une nouvelle période peut les compléter ou les chevaucher.</p>
     {% endif %}
 
     <div>
@@ -42,4 +37,30 @@
   </form>
   <p class="muted">Avant de générer, vérifiez les <a href="/conges">congés</a> de chacun et les <a href="/sur-place">jours sur place</a>.</p>
 </section>
+
+{% if confirm_overlap %}
+<div class="modal-backdrop">
+  <dialog open class="modal" aria-modal="true" aria-labelledby="overlap-title">
+    <h3 id="overlap-title">Chevauchement avec une planification active</h3>
+    {% with overlap=confirm_overlap %}{% include "partials/_generate_overlap.html" %}{% endwith %}
+    <form method="post" action="/generer" class="stack">
+      {{ csrf_input(request) }}
+      <input type="hidden" name="period_from" value="{{ period_from.isoformat() }}">
+      <input type="hidden" name="period_to" value="{{ period_to.isoformat() }}">
+      <div class="radio">
+        <input type="radio" id="overlap-move" name="overlap_mode" value="move" checked>
+        <label for="overlap-move"><strong>Transférer</strong> : les affectations et les ajustements manuels de ces mois sont transférés à la nouvelle génération, sans recalcul.</label>
+      </div>
+      <div class="radio">
+        <input type="radio" id="overlap-recalc" name="overlap_mode" value="recalc">
+        <label for="overlap-recalc"><strong>Recalculer</strong> : ces mois sont générés à nouveau (congés et desiderata actuels) ; leurs ajustements manuels sont perdus, l'ancienne version est archivée.</label>
+      </div>
+      <div class="modal-actions">
+        <a class="button" href="/generer">Annuler</a>
+        <button type="submit" class="primary">Confirmer</button>
+      </div>
+    </form>
+  </dialog>
+</div>
+{% endif %}
 {% endblock %}

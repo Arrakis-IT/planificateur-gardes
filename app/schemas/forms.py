@@ -149,7 +149,8 @@ class GenerateForm(_Form):
 
     period_from: date_type
     period_to: date_type
-    confirm_overwrite: bool = False
+    # How to handle days already held by an active generation (required when there are).
+    overlap_mode: Literal["move", "recalc"] | None = None
 
 
 ReturnTo = Annotated[str, StringConstraints(max_length=2048)]

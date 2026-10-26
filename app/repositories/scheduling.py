@@ -12,6 +12,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import and_, delete, func, not_, select, update
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
@@ -258,23 +259,71 @@ async def lock_clinic(db: AsyncSession, clinic_id: uuid.UUID) -> None:
     await db.execute(select(Clinic.id).where(Clinic.id == clinic_id).with_for_update())
 
 
-async def get_active_generation(db: AsyncSession, clinic_id: uuid.UUID) -> Generation | None:
-    """The clinic's active generation, if any."""
-    stmt = select(Generation).where(
-        Generation.clinic_id == clinic_id, Generation.archived_at.is_(None)
-    )
-    return (await db.scalars(stmt)).one_or_none()
-
-
-async def archive_active_generation(db: AsyncSession, clinic_id: uuid.UUID) -> uuid.UUID | None:
-    """Soft-archive the active generation. Returns its id, if there was one."""
-    result = await db.execute(
-        update(Generation)
+async def active_generations(db: AsyncSession, clinic_id: uuid.UUID) -> list[Generation]:
+    """The clinic's active (not archived) generations, by period."""
+    stmt = (
+        select(Generation)
         .where(Generation.clinic_id == clinic_id, Generation.archived_at.is_(None))
-        .values(is_active=False, archived_at=datetime.now(UTC))
-        .returning(Generation.id)
+        .order_by(Generation.period_from, Generation.generated_at)
     )
-    return result.scalar_one_or_none()
+    return list((await db.scalars(stmt)).all())
+
+
+async def generation_of_day(db: AsyncSession, clinic_id: uuid.UUID, day: date) -> Generation | None:
+    """The active generation holding the assignment of `day` (at most one)."""
+    stmt = (
+        select(Generation)
+        .join(Assignment, Assignment.generation_id == Generation.id)
+        .where(
+            Generation.clinic_id == clinic_id,
+            Generation.archived_at.is_(None),
+            Assignment.date == day,
+        )
+    )
+    return (await db.scalars(stmt)).first()
+
+
+def archive(generation: Generation, now: datetime | None = None) -> None:
+    """Mark a generation archived (the deprecated is_active column follows)."""
+    generation.archived_at = now or datetime.now(UTC)
+    generation.is_active = False
+
+
+async def assignment_dates(db: AsyncSession, generation_id: uuid.UUID) -> list[date]:
+    """Dates holding an assignment of the generation, sorted."""
+    stmt = (
+        select(Assignment.date)
+        .where(Assignment.generation_id == generation_id)
+        .order_by(Assignment.date)
+    )
+    return list((await db.scalars(stmt)).all())
+
+
+async def move_assignments(
+    db: AsyncSession, source_id: uuid.UUID, target_id: uuid.UUID, days: list[date]
+) -> int:
+    """Re-attach the source generation's assignments of `days` to the target (rows kept as
+    they are: doctor, manual edits, flags). Returns the number of rows moved."""
+    if not days:
+        return 0
+    result = await db.execute(
+        update(Assignment)
+        .where(Assignment.generation_id == source_id, Assignment.date.in_(days))
+        .values(generation_id=target_id)
+        .returning(Assignment.id)
+        .execution_options(synchronize_session=False)
+    )
+    return len(result.all())
+
+
+async def expired_generations(
+    db: AsyncSession, today: date, clinic_id: uuid.UUID | None = None
+) -> list[Generation]:
+    """Active generations whose whole period is in the past."""
+    stmt = select(Generation).where(Generation.archived_at.is_(None), Generation.period_to < today)
+    if clinic_id is not None:
+        stmt = stmt.where(Generation.clinic_id == clinic_id)
+    return list((await db.scalars(stmt)).all())
 
 
 async def create_generation(
@@ -287,7 +336,8 @@ async def create_generation(
     onsite_removed: set[date] | None = None,
     desiderata_conflicts: dict[date, DesiderataConflict] | None = None,
 ) -> Generation:
-    """Insert an active generation and its assignments (the caller archived the previous one).
+    """Insert an active generation and its assignments (the caller handled the overlap with
+    the other active generations).
 
     `onsite_removed`: days whose on-site mark is carried over as removed (locked months).
     `desiderata_conflicts`: days whose doctor had a desiderata.
@@ -351,9 +401,14 @@ async def generation_assignments(
 
 
 async def active_assignments(
-    db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
+    db: AsyncSession,
+    clinic_id: uuid.UUID,
+    start: date,
+    end: date,
+    generation_id: uuid.UUID | None = None,
 ) -> dict[date, Assignment]:
-    """Assignments of the clinic's active generation within [start, end]."""
+    """Assignments of the clinic's active generations within [start, end] (at most one per
+    day), optionally of one generation only."""
     stmt = (
         select(Assignment)
         .join(Generation, Generation.id == Assignment.generation_id)
@@ -362,6 +417,27 @@ async def active_assignments(
             Generation.archived_at.is_(None),
             Assignment.date.between(start, end),
         )
+    )
+    if generation_id is not None:
+        stmt = stmt.where(Generation.id == generation_id)
+    return {a.date: a for a in (await db.scalars(stmt)).all()}
+
+
+async def archived_assignments(
+    db: AsyncSession, clinic_id: uuid.UUID, start: date, end: date
+) -> dict[date, Assignment]:
+    """For each day of [start, end], the assignment of the most recent archived generation
+    covering it (read-only history for the days no active generation holds)."""
+    stmt = (
+        select(Assignment)
+        .join(Generation, Generation.id == Assignment.generation_id)
+        .where(
+            Generation.clinic_id == clinic_id,
+            Generation.archived_at.is_not(None),
+            Assignment.date.between(start, end),
+        )
+        .order_by(Assignment.date, Generation.generated_at.desc(), Generation.archived_at.desc())
+        .ext(distinct_on(Assignment.date))
     )
     return {a.date: a for a in (await db.scalars(stmt)).all()}
 

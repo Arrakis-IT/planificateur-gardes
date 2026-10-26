@@ -257,7 +257,7 @@ async def test_regenerating_drops_the_draft(client, db, team):
     await post_form(
         client,
         "/generer",
-        {"period_from": "2027-05-01", "period_to": "2027-05-31", "confirm_overwrite": "true"},
+        {"period_from": "2027-05-01", "period_to": "2027-05-31", "overlap_mode": "recalc"},
     )
     assert await _drafts(db) == []
     assert ("draft_cleared", "regenerated") in [(n, p.get("reason")) for n, p in _events(observer)]

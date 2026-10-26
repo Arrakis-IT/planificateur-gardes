@@ -169,16 +169,17 @@ async def save(
         },
     )
     response = RedirectResponse(_return_to(form.retour), status_code=303)
-    if result.generation is not None and result.changed_cells:
-        background.add_task(
-            send_schedule_notification,
-            get_sessionmaker(),
-            mailer,
-            clinic_id,
-            result.generation.id,
-            auth.user.id,
-            "edited",
-        )
+    if result.changed_cells:
+        for generation in result.generations:  # one PDF per changed generation
+            background.add_task(
+                send_schedule_notification,
+                get_sessionmaker(),
+                mailer,
+                clinic_id,
+                generation.id,
+                auth.user.id,
+                "edited",
+            )
         set_flash(
             response,
             f"{result.changed_cells} modification(s) enregistrée(s). "

@@ -27,7 +27,7 @@ from app.services.scheduler import UNASSIGNED
 
 
 class CellNotFoundError(LookupError):
-    """No active generation, or the date is outside its period."""
+    """No active generation holds the date."""
 
 
 class InvalidDoctorError(ValueError):
@@ -58,8 +58,8 @@ class Cell:
 
 
 async def get_cell(db: AsyncSession, clinic_id: uuid.UUID, day: date) -> Cell:
-    """Load one cell of the clinic's active generation (raises CellNotFoundError)."""
-    generation = await repo.get_active_generation(db, clinic_id)
+    """Load one cell of the active generation holding `day` (raises CellNotFoundError)."""
+    generation = await repo.generation_of_day(db, clinic_id, day)
     if generation is None:
         raise CellNotFoundError
     assignment = await db.scalar(
@@ -128,9 +128,9 @@ async def toggle_cell_onsite(
 
 @dataclass(frozen=True)
 class SaveResult:
-    """Outcome of "Enregistrer les modifications"."""
+    """Outcome of "Enregistrer les modifications": the generations with changed cells."""
 
-    generation: Generation | None
+    generations: list[Generation]
     changed_cells: int
 
 
@@ -167,62 +167,67 @@ async def _assignments_for(
 async def save_draft(
     db: AsyncSession, clinic_id: uuid.UUID, actor: User, request: Request | None = None
 ) -> SaveResult:
-    """Apply the draft to the active generation, one audit entry per changed cell.
+    """Apply the draft to the active generations, one audit entry per changed cell.
 
     A cell whose doctor changes gets `desiderata_conflict` = manual when the new doctor has a
-    desiderata that day (none otherwise). Caller commits (then broadcasts `draft_cleared`
-    and emails the PDF).
+    desiderata that day (none otherwise). Draft cells of a generation that is no longer
+    active are dropped. Caller commits (then broadcasts `draft_cleared` and emails the PDF
+    of each changed generation).
     """
     await repo.lock_clinic(db, clinic_id)
-    generation = await repo.get_active_generation(db, clinic_id)
-    if generation is None:
-        await drafts_repo.clear_drafts(db, clinic_id)
-        return SaveResult(None, 0)
-    drafts = await drafts_repo.drafts_by_date(db, clinic_id, generation.id)
+    drafts = await drafts_repo.clinic_drafts(db, clinic_id)
     if drafts:
         # A month may have been locked after these cells were drafted.
         locked = await locked_months(db, clinic_id, min(drafts), max(drafts))
         blocked = sorted(d for d in drafts if is_locked(d, locked))
         if blocked:
             raise MonthLockedError(blocked[0].replace(day=1))
-    assignments = await _assignments_for(db, generation.id, list(drafts))
+    generations = {g.id: g for g in await repo.active_generations(db, clinic_id)}
     codes = {u.id: u.doctor_code for u in (await repo.users_by_id(db, clinic_id)).values()}
     wishes = (
         await repo.desiderata_by_date(db, clinic_id, min(drafts), max(drafts)) if drafts else {}
     )
     now = datetime.now(UTC)
     changed = 0
-    for day, draft in sorted(drafts.items()):
-        assignment = assignments.get(day)
-        change = _cell_change(assignment, draft, codes) if assignment is not None else None
-        if assignment is None or change is None:
+    touched: dict[uuid.UUID, Generation] = {}
+    for generation_id in sorted({d.generation_id for d in drafts.values()}, key=str):
+        generation = generations.get(generation_id)
+        if generation is None:
             continue
-        action, meta = change
-        if draft.user_id != assignment.user_id:
-            manual = draft.user_id is not None and draft.user_id in wishes.get(day, set())
-            assignment.desiderata_conflict = DesiderataConflict.MANUAL if manual else None
-            if manual:
-                meta["desiderata"] = True
-        audit.record(
-            db,
-            action,
-            request=request,
-            user_id=actor.id,
-            clinic_id=clinic_id,
-            target_type="assignment",
-            target_id=assignment.id,
-            meta=meta,
-        )
-        assignment.user_id = draft.user_id
-        assignment.onsite_removed = draft.onsite_removed
-        assignment.edited_by = draft.edited_by or actor.id
-        assignment.edited_at = now
-        changed += 1
+        mine = {day: d for day, d in drafts.items() if d.generation_id == generation_id}
+        assignments = await _assignments_for(db, generation_id, list(mine))
+        for day, draft in sorted(mine.items()):
+            assignment = assignments.get(day)
+            change = _cell_change(assignment, draft, codes) if assignment is not None else None
+            if assignment is None or change is None:
+                continue
+            action, meta = change
+            if draft.user_id != assignment.user_id:
+                manual = draft.user_id is not None and draft.user_id in wishes.get(day, set())
+                assignment.desiderata_conflict = DesiderataConflict.MANUAL if manual else None
+                if manual:
+                    meta["desiderata"] = True
+            audit.record(
+                db,
+                action,
+                request=request,
+                user_id=actor.id,
+                clinic_id=clinic_id,
+                target_type="assignment",
+                target_id=assignment.id,
+                meta=meta,
+            )
+            assignment.user_id = draft.user_id
+            assignment.onsite_removed = draft.onsite_removed
+            assignment.edited_by = draft.edited_by or actor.id
+            assignment.edited_at = now
+            changed += 1
+            touched[generation_id] = generation
     await drafts_repo.clear_drafts(db, clinic_id)
     await db.flush()
-    if changed:  # republished (and emailed): refresh what the next changelog compares with
+    for generation in touched.values():  # republished (and emailed): refresh the snapshot
         await repo.snapshot_onsite(db, clinic_id, generation.id)
-    return SaveResult(generation, changed)
+    return SaveResult(sorted(touched.values(), key=lambda g: g.period_from), changed)
 
 
 async def discard_draft(

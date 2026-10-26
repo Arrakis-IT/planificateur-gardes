@@ -36,14 +36,14 @@ Mois {{ d|month_label }} verrouillé : aucune modification possible.
         <div class="month-cell empty"></div>
       {% else %}
         {% set filtered_out = filter_code and (not day.doctor or day.doctor.doctor_code != filter_code) %}
-        {% set editable = return_to and day.planned and not day.locked %}
+        {% set editable = return_to and day.planned and not day.locked and not day.archived %}
         {# A locked cell of an editable view is a button: tapping it explains why nothing
            can be edited (a plain div gives no feedback at all on touch screens). #}
         {% set locked_tap = return_to and day.planned and day.locked %}
         {% set tag = 'a' if editable else ('button' if locked_tap else 'div') %}
         {% set conflict = day.desiderata_conflict and day.doctor %}
         <{{ tag }} class="month-cell{{ ' weekend' if day.weekend }}{{ ' onsite-cell' if day.onsite }}{{ ' xx-cell' if day.unassigned }}{{ ' today' if d == today }}{{ ' filtered-out' if filtered_out }}{{ ' drafted' if day.drafted }}{{ ' clickable' if editable }}{{ ' locked-cell' if day.locked }}{{ ' desiderata-conflict' if conflict }}" id="jour-{{ d.isoformat() }}"
-             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}{{ ' — modification non enregistrée' if day.drafted }}{{ ' — mois verrouillé' if day.locked }}{{ ' — ' ~ desiderata_message(day) if conflict }}"
+             title="{{ d|long_date }}{{ ' — ' ~ day.holiday if day.holiday }}{{ ' — sur place' if day.onsite }}{{ ' — ' ~ day.doctor.full_name if day.doctor }}{{ ' — modification non enregistrée' if day.drafted }}{{ ' — mois verrouillé' if day.locked }}{{ ' — planification archivée' if day.archived }}{{ ' — ' ~ desiderata_message(day) if conflict }}"
              {% if editable %}href="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}"
              hx-get="/resultats/jour/{{ d.isoformat() }}?retour={{ return_to|urlencode }}" hx-target="#modal" hx-swap="innerHTML"{% endif %}
              {% if locked_tap %}type="button" aria-disabled="true" data-locked-message="{{ locked_message(d) }}"{% endif %}>

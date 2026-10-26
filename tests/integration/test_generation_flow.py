@@ -59,8 +59,9 @@ async def test_generate_page_defaults_and_doctor_counts(client, db, clinic_team,
 async def test_generate_creates_active_generation(client, db, clinic_team):
     _, nr, *_ = clinic_team
     response = await post_form(client, "/generer", PERIOD)
-    assert response.status_code == 303 and response.headers["location"] == "/resultats"
     generation = await db.scalar(select(Generation))
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/resultats?generation={generation.id}"
     assert generation.is_active and generation.generated_by == nr.id
     assignments = (await db.scalars(select(Assignment))).all()
     assert len(assignments) == 31
@@ -75,17 +76,22 @@ async def test_generate_creates_active_generation(client, db, clinic_team):
     assert results.text.count('class="cell-doctor"') == 31
     assert "Généré" in results.text and "Nicolas Rousseau" in results.text
     filtered = await client.get("/resultats?medecin=NR")
-    assert 'filter-chip active" href="/resultats?medecin=NR"' in filtered.text
+    assert f'filter-chip active" href="/resultats?generation={generation.id}&amp;medecin=NR"' in (
+        filtered.text
+    )
     assert "filtered-out" in filtered.text
 
 
 async def test_regenerate_requires_confirmation_and_archives(client, db, clinic_team):
     await post_form(client, "/generer", PERIOD)
     refused = await post_form(client, "/generer", PERIOD)
-    assert refused.status_code == 400 and "Confirmez" in refused.text
+    assert refused.status_code == 409 and "Chevauchement avec une planification active" in (
+        refused.text
+    )
+    assert "Attention : cette nouvelle génération inclut les mois" in refused.text
     assert await db.scalar(select(func.count(Generation.id))) == 1
 
-    ok = await post_form(client, "/generer", PERIOD | {"confirm_overwrite": "true"})
+    ok = await post_form(client, "/generer", PERIOD | {"overlap_mode": "recalc"})
     assert ok.status_code == 303
     generations = (await db.scalars(select(Generation).order_by(Generation.generated_at))).all()
     assert [g.is_active for g in generations] == [False, True]

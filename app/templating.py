@@ -58,6 +58,10 @@ templates.env.filters["long_date"] = cal.long_date
 templates.env.filters["short_date"] = cal.short_date
 templates.env.filters["local_datetime"] = cal.local_datetime
 templates.env.filters["month_label"] = cal.month_label
+templates.env.filters["day_month_year"] = cal.day_month_year
+templates.env.filters["local_date"] = lambda dt: cal.day_month_year(
+    dt.astimezone(cal.CLINIC_TZ).date()
+)
 templates.env.filters["weekday_fr"] = lambda d: cal.WEEKDAYS_FR[d.weekday()]
 
 

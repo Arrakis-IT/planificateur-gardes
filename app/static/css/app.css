@@ -178,6 +178,9 @@ button.link:hover { color: var(--accent); background: none; }
 }
 .checkbox { display: flex; gap: 8px; align-items: center; }
 .checkbox label { margin: 0; }
+.radio { display: flex; gap: 8px; align-items: flex-start; }
+.radio input { margin-top: 3px; }
+.radio label { margin: 0; text-transform: none; letter-spacing: normal; font-size: 14px; color: var(--ink); }
 .terms-logout { margin-top: 12px; }
 .ical-help { padding-left: 18px; margin: 10px 0; }
 

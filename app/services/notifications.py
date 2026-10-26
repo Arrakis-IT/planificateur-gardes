@@ -16,6 +16,7 @@ skipped, and every message ends with a one-click unsubscribe link.
 
 import logging
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -77,11 +78,12 @@ async def send_schedule_notification(
     actor_id: uuid.UUID,
     action: Action,
     *,
-    previous_generation_id: uuid.UUID | None = None,
+    previous_generation_ids: Sequence[uuid.UUID] = (),
 ) -> None:
     """Render the PDF and email it to all active users of the clinic, auditing the result.
 
-    `previous_generation_id`: the generation archived by this one (regeneration changelog).
+    `previous_generation_ids`: archived generations holding the assignments this one
+    recalculated (changelog).
     """
     async with sessionmaker() as db:
         clinic = await db.get(Clinic, clinic_id)
@@ -104,9 +106,9 @@ async def send_schedule_notification(
                     user.id,
                 )
         changelog: Changelog | None = None
-        if previous_generation_id is not None:
+        if previous_generation_ids:
             try:
-                changelog = await load_changelog(db, clinic_id, previous_generation_id, generation)
+                changelog = await load_changelog(db, clinic_id, previous_generation_ids, generation)
             except Exception:
                 # The schedule itself matters more than the changelog: send without it.
                 logger.exception("Changelog failed (generation=%s)", generation_id)

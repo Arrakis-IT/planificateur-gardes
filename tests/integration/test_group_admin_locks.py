@@ -38,7 +38,8 @@ def _today(monkeypatch):
 
 async def _active_generation(db, clinic, user, start: date, end: date) -> None:
     """Store an active generation (every day to `user`), archiving the previous one."""
-    await scheduling_repo.archive_active_generation(db, clinic.id)
+    for generation in await scheduling_repo.active_generations(db, clinic.id):
+        scheduling_repo.archive(generation)
     days = {start + timedelta(days=i): user.id for i in range((end - start).days + 1)}
     await scheduling_repo.create_generation(db, clinic.id, start, end, user.id, days)
     await db.commit()
@@ -215,7 +216,8 @@ async def test_lock_refused_outside_the_active_generation(client, db, team):
     assert response.status_code == 400 and OUT_OF_RANGE in response.text
     assert await _locked(db, clinic) == set()
 
-    await scheduling_repo.archive_active_generation(db, clinic.id)
+    for generation in await scheduling_repo.active_generations(db, clinic.id):
+        scheduling_repo.archive(generation)
     await db.commit()
     response = await _lock(client, "2027-01")  # no active generation at all
     assert response.status_code == 400 and OUT_OF_RANGE in response.text
@@ -240,15 +242,19 @@ async def test_settings_only_list_months_of_the_active_generation(client, db, te
     assert 'value="unlock"' in row and 'value="lock"' not in row
 
 
-async def test_regeneration_releases_locks_outside_the_new_period(client, db, team, plan):
+async def test_new_generation_releases_locks_no_generation_covers(client, db, team, plan):
     clinic, admin, _ = team
     await _lock(client, "2026-12")
     await _lock(client, "2027-03")
+    # December is no longer covered by any active generation once the first one is archived.
+    for generation in await scheduling_repo.active_generations(db, clinic.id):
+        scheduling_repo.archive(generation)
+    await db.commit()
     response = await _generate(client, "2027-01-01", "2027-06-30")
     assert response.status_code == 303
     assert await _locked(db, clinic) == {date(2027, 3, 1)}
-    flash = (await client.get("/resultats")).text
-    assert "Verrouillage retiré (hors de la nouvelle période) : décembre 2026." in flash
+    flash = (await client.get(response.headers["location"])).text
+    assert "Verrouillage retiré (hors des planifications actives) : décembre 2026." in flash
     entry = await db.scalar(
         select(AuditLog).where(
             AuditLog.action == "month_unlocked",
@@ -257,6 +263,24 @@ async def test_regeneration_releases_locks_outside_the_new_period(client, db, te
     )
     assert entry is not None
     assert entry.meta["month"] == "2026-12" and entry.user_id == admin.id
+
+
+async def test_locks_of_an_overlapped_generation_are_kept(client, db, team, plan):
+    """A generation shrunk by a new one keeps its locked months (and their locks)."""
+    clinic, *_ = team
+    await _lock(client, "2026-12")
+    await _lock(client, "2027-03")
+    response = await _generate(client, "2027-01-01", "2027-06-30")
+    assert response.status_code == 303
+    assert await _locked(db, clinic) == {date(2026, 12, 1), date(2027, 3, 1)}
+    first, second = await scheduling_repo.active_generations(db, clinic.id)
+    # The first keeps October–December plus locked March: fitted to its remaining days.
+    assert (first.period_from, first.period_to) == (date(2026, 10, 1), date(2027, 3, 31))
+    assert (second.period_from, second.period_to) == (date(2027, 1, 1), date(2027, 6, 30))
+    march = await scheduling_repo.active_assignments(
+        db, clinic.id, date(2027, 3, 1), date(2027, 3, 31)
+    )
+    assert {a.generation_id for a in march.values()} == {first.id}
 
 
 # --- 403 on changes in a locked month ---------------------------------------------------------
@@ -308,7 +332,7 @@ def plan(monkeypatch):
 
 async def _generate(client, start: str, end: str):
     return await post_form(
-        client, "/generer", {"period_from": start, "period_to": end, "confirm_overwrite": "true"}
+        client, "/generer", {"period_from": start, "period_to": end, "overlap_mode": "recalc"}
     )
 
 
@@ -359,9 +383,13 @@ async def test_locked_months_are_read_only_in_calendars(client, db, team, plan):
 
 
 async def test_regeneration_keeps_locked_months(client, db, team, mailer, plan):
-    _, admin, doctor = team
+    clinic, admin, doctor = team
     await _generate(client, "2027-04-01", "2027-05-31")  # everything to the first doctor
-    first = await db.scalar(select(Generation).where(Generation.is_active.is_(True)))
+    first = await db.scalar(
+        select(Generation).where(
+            Generation.archived_at.is_(None), Generation.period_from == date(2027, 4, 1)
+        )
+    )
     april = date(2027, 4, 12)
     removed = await db.scalar(
         select(Assignment).where(Assignment.generation_id == first.id, Assignment.date == april)
@@ -374,26 +402,35 @@ async def test_regeneration_keeps_locked_months(client, db, team, mailer, plan):
     fragment = await client.get(
         "/generer/medecins", params={"period_from": "2027-03-15", "period_to": "2027-06-15"}
     )
-    assert "Les mois verrouillés (avril 2027) ne seront pas modifiés." in fragment.text
+    assert "Les mois verrouillés (avril 2027)" in fragment.text
+    assert "restent dans la génération du" in fragment.text
 
     plan.clear()
     for offset in range(120):
         plan[date(2027, 3, 1) + timedelta(days=offset)] = doctor.full_name
     response = await _generate(client, "2027-03-15", "2027-06-15")
     assert response.status_code == 303
-    flash = (await client.get("/resultats")).text
+    flash = (await client.get(response.headers["location"])).text
     assert "Les mois verrouillés (avril 2027) ne seront pas modifiés." in flash
 
-    second = await db.scalar(select(Generation).where(Generation.is_active.is_(True)))
-    cells = {
-        a.date: a
-        for a in (
-            await db.scalars(select(Assignment).where(Assignment.generation_id == second.id))
-        ).all()
-    }
-    assert all(cells[date(2027, 4, d)].user_id == admin.id for d in range(1, 31))
-    assert cells[april].onsite_removed is True
-    assert cells[april].desiderata_conflict == DesiderataConflict.MANUAL  # kept with the cell
+    # April stays in the first generation, untouched; the new one holds the other days.
+    await db.refresh(first)
+    assert first.active and (first.period_from, first.period_to) == (
+        date(2027, 4, 1),
+        date(2027, 4, 30),
+    )
+    second = await db.scalar(
+        select(Generation).where(
+            Generation.archived_at.is_(None), Generation.period_from == date(2027, 3, 15)
+        )
+    )
+    kept = await scheduling_repo.generation_assignments(db, clinic.id, first.id)
+    assert sorted(kept) == [date(2027, 4, d) for d in range(1, 31)]
+    assert all(cell.user_id == admin.id for cell in kept.values())
+    assert kept[april].onsite_removed is True
+    assert kept[april].desiderata_conflict == DesiderataConflict.MANUAL
+    cells = await scheduling_repo.generation_assignments(db, clinic.id, second.id)
+    assert not any(d.month == 4 for d in cells)
     assert cells[date(2027, 5, 3)].user_id == doctor.id
     assert cells[date(2027, 3, 20)].user_id == doctor.id
 

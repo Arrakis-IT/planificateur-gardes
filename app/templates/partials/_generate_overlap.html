@@ -1,0 +1,24 @@
+{# Active generations met by the proposed period (GET /generer/chevauchement, generate page). #}
+<div id="generate-overlap">
+{% if overlap and overlap.transfers %}
+  <div class="alert alert-warn" role="status">
+    {% for part in overlap.transfers %}
+    <p>Attention : cette nouvelle génération inclut les mois
+      <strong>{% for m in part.months %}{{ m|month_label }}{{ ', ' if not loop.last }}{% endfor %}</strong>
+      déjà couverts par la génération du {{ part.generation.generated_at|local_date }}.</p>
+    {% endfor %}
+    {% for part in overlap.parts if part.kept_days %}
+    <p>🔒 Les mois verrouillés ({% for m in part.kept_months %}{{ m|month_label }}{{ ', ' if not loop.last }}{% endfor %})
+      restent dans la génération du {{ part.generation.generated_at|local_date }}.</p>
+    {% endfor %}
+    <p class="small">Vous choisirez avant de confirmer : transférer leurs affectations (ajustements manuels conservés) ou les recalculer.</p>
+  </div>
+{% elif overlap and overlap.kept_days %}
+  <div class="alert alert-warn" role="status">
+    {% for part in overlap.parts if part.kept_days %}
+    <p>🔒 Les mois verrouillés ({% for m in part.kept_months %}{{ m|month_label }}{{ ', ' if not loop.last }}{% endfor %})
+      restent dans la génération du {{ part.generation.generated_at|local_date }}.</p>
+    {% endfor %}
+  </div>
+{% endif %}
+</div>

@@ -631,11 +631,13 @@ def compute_stats(
     request: ScheduleRequest,
     assignments: Mapping[date, str | None],
     onsite: set[date] | None = None,
+    days: Container[date] | None = None,
 ) -> ScheduleStats:
     """Port of the JS statistics, with weekday public holidays counted as week-end.
 
     `onsite` defaults to the request's on-site days; pass the effective set when some
-    days were unmarked in the results (JS `esOnSiteEffectivo`).
+    days were unmarked in the results (JS `esOnSiteEffectivo`). `days` restricts the totals
+    to the days a stored generation actually holds (default: the whole period).
 
     Note: the 'Congés' column counts only vacation days that fall within the generation
     period. This differs from the original Excel/VBA version, which counted all vacation
@@ -656,6 +658,8 @@ def compute_stats(
     desiderata = {c: sum(1 for d, wish in request.desiderata.items() if c in wish) for c in codes}
     total_week = total_weekend = total_onsite = unassigned = 0
     for d in build_fechas(request.period_from, request.period_to):
+        if days is not None and d not in days:
+            continue
         code = assignments.get(d)
         we = is_weekend_for_stats(d, public)
         os = d in onsite_days

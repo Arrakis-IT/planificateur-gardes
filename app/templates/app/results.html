@@ -10,10 +10,19 @@
 {% else %}
 <div id="planning">
 {% include "partials/_draft_banner.html" %}
+{% set gq = 'generation=' ~ generation.id %}
 <section class="panel">
+  {% if actives|length > 1 %}
+  <nav class="filter-bar" aria-label="Planifications actives">
+    <span class="filter-label">Planifications :</span>
+    {% for g in actives %}
+      <a class="filter-chip{{ ' active' if g.id == generation.id }}" href="/resultats?generation={{ g.id }}">{{ g.period_from|short_date }} – {{ g.period_to|short_date }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
   <div class="panel-header">
     <h1>Planification du {{ generation.period_from|short_date }} au {{ generation.period_to|short_date }}</h1>
-    <a class="button" href="/resultats/pdf">Télécharger le PDF</a>
+    <a class="button" href="/resultats/pdf?{{ gq }}">Télécharger le PDF</a>
   </div>
   <p class="muted">
     Générée{% if generated_by %} par {{ generated_by.full_name }}{% endif %}
@@ -83,9 +92,9 @@
   </div>
   <div class="filter-bar">
     <span class="filter-label">Filtrer :</span>
-    <a class="filter-chip{{ ' active' if not filter_code }}" href="/resultats">Tous</a>
+    <a class="filter-chip{{ ' active' if not filter_code }}" href="/resultats?{{ gq }}">Tous</a>
     {% for code, user in users.items() %}
-      <a class="filter-chip{{ ' active' if filter_code == code }}" href="/resultats?medecin={{ code }}">{{ user.full_name }}<span class="chip-code">{{ code }}</span></a>
+      <a class="filter-chip{{ ' active' if filter_code == code }}" href="/resultats?{{ gq }}&amp;medecin={{ code }}">{{ user.full_name }}<span class="chip-code">{{ code }}</span></a>
     {% endfor %}
   </div>
   {% include "partials/_legend.html" %}

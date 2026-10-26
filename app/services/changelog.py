@@ -3,9 +3,11 @@
 
 """Day-by-day changes between the previous and the new generation (schedule email).
 
-Only the days covered by both generations are compared: days that left the period, new
-days, days of locked months and vacations are out of scope (the attached PDF shows the full
-new schedule).
+Only the days held by both sides are compared: the previous side is the archived
+generation(s) holding the assignments a new generation recalculated (days transferred as
+they are, or kept in a locked month, are not compared). Days that left the period, new days,
+days of locked months and vacations are out of scope (the attached PDF shows the full new
+schedule).
 `build_changelog` is pure; `load_changelog` reads both generations from the database.
 
 Entry format (`describe_change`), "(sur place)" flags and red highlight (any change that
@@ -27,7 +29,7 @@ An unassigned day reads "non assigné" in place of a doctor name.
 """
 
 import uuid
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -93,10 +95,12 @@ def build_changelog(
     current: Period,
     after: Mapping[date, DayState],
     locked: Collection[date] = (),
+    days: Collection[date] | None = None,
 ) -> Changelog | None:
     """Changes on the overlap of both periods, by date; None when they do not overlap.
 
-    Days of `locked` months (first days) are left out.
+    Days of `locked` months (first days) are left out; `days`, if given, restricts the
+    comparison to those days.
     """
     start, end = max(previous.start, current.start), min(previous.end, current.end)
     if start > end:
@@ -105,7 +109,7 @@ def build_changelog(
     entries: list[ChangeEntry] = []
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
-        if day.replace(day=1) in locked:
+        if day.replace(day=1) in locked or (days is not None and day not in days):
             continue
         change = describe_change(before.get(day, unassigned), after.get(day, unassigned))
         if change is not None:
@@ -127,13 +131,25 @@ def _states(
 
 
 async def load_changelog(
-    db: AsyncSession, clinic_id: uuid.UUID, previous_id: uuid.UUID, generation: Generation
+    db: AsyncSession,
+    clinic_id: uuid.UUID,
+    previous_ids: Sequence[uuid.UUID],
+    generation: Generation,
 ) -> Changelog | None:
-    """Changelog between the archived generation `previous_id` and `generation`."""
-    previous = await db.get(Generation, previous_id)
-    if previous is None or previous.clinic_id != clinic_id:
+    """Changelog between the archived generations `previous_ids` and `generation`, over the
+    days both hold."""
+    loaded = [await db.get(Generation, pid) for pid in previous_ids]
+    previous = [g for g in loaded if g is not None and g.clinic_id == clinic_id]
+    if not previous:
         return None
-    previous_period = Period(previous.period_from, previous.period_to)
+    before_rows: dict[date, Assignment] = {}
+    for old in previous:
+        before_rows |= await repo.generation_assignments(db, clinic_id, old.id)
+    after_rows = await repo.generation_assignments(db, clinic_id, generation.id)
+    shared = set(before_rows) & set(after_rows)
+    if not shared:
+        return None
+    previous_period = Period(min(before_rows), max(before_rows))
     current_period = Period(generation.period_from, generation.period_to)
     start = min(previous_period.start, current_period.start)
     end = max(previous_period.end, current_period.end)
@@ -141,8 +157,9 @@ async def load_changelog(
     onsite = await repo.list_onsite_days(db, clinic_id, start, end)
     return build_changelog(
         previous_period,
-        _states(await repo.generation_assignments(db, clinic_id, previous.id), names, onsite),
+        _states(before_rows, names, onsite),
         current_period,
-        _states(await repo.generation_assignments(db, clinic_id, generation.id), names, onsite),
+        _states(after_rows, names, onsite),
         await locked_months(db, clinic_id, start, end),
+        shared,
     )

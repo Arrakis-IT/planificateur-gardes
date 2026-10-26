@@ -665,7 +665,7 @@ async def test_custom_holidays_add_merge_render_and_delete(admin_client, app, db
 
 async def scheduling_stats(db, clinic):
     db.expunge_all()
-    generation = await scheduling_repo.get_active_generation(db, clinic.id)
+    (generation,) = await scheduling_repo.active_generations(db, clinic.id)
     return (await results_stats(db, clinic.id, generation)).stats
 
 
@@ -691,7 +691,7 @@ async def test_custom_holidays_feed_the_scheduler_stats_on_generation(client, db
     await post_form(
         client,
         "/generer",
-        {"period_from": "2027-05-01", "period_to": "2027-05-31", "confirm_overwrite": "true"},
+        {"period_from": "2027-05-01", "period_to": "2027-05-31", "overlap_mode": "recalc"},
     )
     assert (await scheduling_stats(db, clinic)).total_weekend == 13
 
@@ -707,7 +707,7 @@ async def test_archive_active_generation(admin_client, db, cabinet):
     db.expunge_all()
     archived = await db.get(Generation, generation.id)
     assert archived.is_active is False and archived.archived_at is not None
-    assert await scheduling_repo.get_active_generation(db, clinic.id) is None
+    assert await scheduling_repo.active_generations(db, clinic.id) == []
     assert await db.scalar(select(AuditLog).where(AuditLog.action == "generation_archived"))
     recent = await admin_client.get("/admin/generations")
     assert "Cabinet du Parc" in recent.text and "Archivée" in recent.text
