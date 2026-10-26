@@ -139,15 +139,20 @@ class MonthLock(UUIDPrimaryKeyMixin, Base):
 
 
 class Generation(UUIDPrimaryKeyMixin, Base):
-    """One run of the scheduler for a clinic. Exactly one is active per clinic."""
+    """One run of the scheduler for a clinic.
+
+    A generation is active while `archived_at` is NULL; a clinic can have several active
+    generations, but never two with an assignment on the same day (enforced by
+    app.services.planning when a generation is created: overlapping days are transferred,
+    recalculated or kept, see `run_generation`).
+    """
 
     __tablename__ = "generation"
     __table_args__ = (
         Index(
-            "uq_generation_clinic_id_active",
+            "ix_generation_clinic_id_open",
             "clinic_id",
-            unique=True,
-            postgresql_where=text("is_active"),
+            postgresql_where=text("archived_at IS NULL"),
         ),
         Index("ix_generation_clinic_id_generated_at", "clinic_id", "generated_at"),
     )
@@ -157,12 +162,19 @@ class Generation(UUIDPrimaryKeyMixin, Base):
     )
     period_from: Mapped[date] = mapped_column(Date, nullable=False)
     period_to: Mapped[date] = mapped_column(Date, nullable=False)
+    # Deprecated since 0.13.0: read `active` (archived_at IS NULL). Still written on archive
+    # so that the column stays consistent with archived_at until it is dropped.
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=true())
     generated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey(USER_FK, ondelete=SET_NULL))
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def active(self) -> bool:
+        """Not archived."""
+        return self.archived_at is None
 
 
 class Assignment(UUIDPrimaryKeyMixin, Base):

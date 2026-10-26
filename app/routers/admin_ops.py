@@ -136,7 +136,9 @@ async def _clinic_page(
 ) -> Response:
     users = await users_repo.list_users(db, clinic_id=clinic.id)
     active = await db.scalar(
-        select(Generation).where(Generation.clinic_id == clinic.id, Generation.is_active.is_(True))
+        select(Generation).where(
+            Generation.clinic_id == clinic.id, Generation.archived_at.is_(None)
+        )
     )
     context: dict[str, Any] = {
         "clinic": clinic,
@@ -485,7 +487,7 @@ async def generation_archive(
     """Archive the active generation: the clinic is left without an active planning."""
     generation = await _generation_or_404(db, generation_id)
     target = f"/admin/clinic/{generation.clinic_id}/generations"
-    if not generation.is_active:
+    if not generation.active:
         return _redirect(target, "Cette génération est déjà archivée.", "error")
     generation.is_active = False
     generation.archived_at = datetime.now(UTC)
@@ -530,7 +532,7 @@ async def generation_delete(
         raise HTTPException(
             status.HTTP_403_FORBIDDEN, "Mot de passe incorrect : suppression refusée."
         )
-    clinic_id, was_active = generation.clinic_id, generation.is_active
+    clinic_id, was_active = generation.clinic_id, generation.active
     audit.record(
         db,
         "generation_deleted",

@@ -869,6 +869,7 @@ async def test_stats_numbers(admin_client, db, cabinet, make_clinic, make_user):
         period_to=date(2026, 6, 30),
         is_active=False,
         generated_at=datetime.now(UTC) - timedelta(days=60),
+        archived_at=datetime.now(UTC) - timedelta(days=30),
     )
     db.add(old_generation)
     await db.commit()

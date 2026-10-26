@@ -261,7 +261,7 @@ async def lock_clinic(db: AsyncSession, clinic_id: uuid.UUID) -> None:
 async def get_active_generation(db: AsyncSession, clinic_id: uuid.UUID) -> Generation | None:
     """The clinic's active generation, if any."""
     stmt = select(Generation).where(
-        Generation.clinic_id == clinic_id, Generation.is_active.is_(True)
+        Generation.clinic_id == clinic_id, Generation.archived_at.is_(None)
     )
     return (await db.scalars(stmt)).one_or_none()
 
@@ -270,7 +270,7 @@ async def archive_active_generation(db: AsyncSession, clinic_id: uuid.UUID) -> u
     """Soft-archive the active generation. Returns its id, if there was one."""
     result = await db.execute(
         update(Generation)
-        .where(Generation.clinic_id == clinic_id, Generation.is_active.is_(True))
+        .where(Generation.clinic_id == clinic_id, Generation.archived_at.is_(None))
         .values(is_active=False, archived_at=datetime.now(UTC))
         .returning(Generation.id)
     )
@@ -359,7 +359,7 @@ async def active_assignments(
         .join(Generation, Generation.id == Assignment.generation_id)
         .where(
             Generation.clinic_id == clinic_id,
-            Generation.is_active.is_(True),
+            Generation.archived_at.is_(None),
             Assignment.date.between(start, end),
         )
     )
