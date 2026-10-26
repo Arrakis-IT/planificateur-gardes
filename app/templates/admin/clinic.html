@@ -16,7 +16,7 @@
   </div>
   <p class="muted">
     Identifiant <span class="mono">{{ clinic.slug }}</span> ·
-    {% if active %}planification active du {{ active.period_from|short_date }} au {{ active.period_to|short_date }}{% else %}aucune planification active{% endif %}
+    {% if actives %}planification(s) active(s) : {% for g in actives %}{{ g.period_from|short_date }} – {{ g.period_to|short_date }}{{ ', ' if not loop.last }}{% endfor %}{% else %}aucune planification active{% endif %}
   </p>
   <p class="muted small">« Lecture seule » montre les pages du groupe sans pouvoir rien modifier. Pour modifier, connectez-vous en tant qu'un médecin.</p>
 

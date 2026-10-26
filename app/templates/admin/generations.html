@@ -6,6 +6,25 @@
     <h1>Générations{% if clinic %} — <a href="/admin/clinic/{{ clinic.id }}">{{ clinic.name }}</a>{% endif %}</h1>
   </div>
   {% if not clinic %}<p class="muted">Les 100 dernières générations, tous groupes confondus.</p>{% endif %}
+  {% if clinic %}
+  <h2>Planifications actives</h2>
+  {% if active_rows %}
+  <table class="table">
+    <thead><tr><th>Période</th><th>Mois verrouillés</th><th>Générée le</th></tr></thead>
+    <tbody>
+    {% for g, locked in active_rows %}
+      <tr>
+        <td class="mono">{{ g.period_from|short_date }} – {{ g.period_to|short_date }}</td>
+        <td>{% for m in locked %}<span class="badge lock-badge">🔒 {{ m|month_label }}</span> {% else %}<span class="muted">—</span>{% endfor %}</td>
+        <td class="mono">{{ g.generated_at|local_datetime }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Aucune planification active.</p>{% endif %}
+  <p class="muted small">Plusieurs planifications peuvent être actives, jamais sur les mêmes jours. Une planification archivée ne peut pas être réactivée.</p>
+  <h2>Historique</h2>
+  {% endif %}
   <table class="table">
     <thead><tr><th>Groupe</th><th>Période</th><th>Générée par</th><th>Le</th><th>Statut</th>{% if clinic %}<th class="actions">Actions</th>{% endif %}</tr></thead>
     <tbody>
@@ -19,10 +38,14 @@
         {% if clinic %}
         <td class="actions">
           {% if g.active %}
-          <form method="post" action="/admin/generations/{{ g.id }}/archive" class="inline">
-            {{ csrf_input(request) }}
-            <button type="submit">Archiver</button>
-          </form>
+          <details class="inline">
+            <summary>Archiver</summary>
+            <form method="post" action="/admin/generations/{{ g.id }}/archive" class="stack">
+              {{ csrf_input(request) }}
+              <p class="small">Archiver cette génération ? Ses jours restent visibles en lecture seule ; elle ne pourra pas être réactivée.</p>
+              <button type="submit">Archiver</button>
+            </form>
+          </details>
           {% endif %}
           <details>
             <summary class="danger">Supprimer</summary>

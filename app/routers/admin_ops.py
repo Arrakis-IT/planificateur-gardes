@@ -5,7 +5,7 @@
 custom holidays, generations, audit log viewer and platform statistics (brief §4.3)."""
 
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
@@ -18,7 +18,7 @@ from app.dependencies import DbSession, SuperadminAuth, require_superadmin, safe
 from app.models import AuditLog, Clinic, CustomHoliday, Generation, User
 from app.repositories import admin as admin_repo
 from app.repositories import clinics as clinics_repo
-from app.repositories import drafts as drafts_repo
+from app.repositories import scheduling as scheduling_repo
 from app.repositories import users as users_repo
 from app.routers.account import PALETTE_CONFIRM_REQUIRED, appearance_context
 from app.routers.appearance import (
@@ -39,8 +39,9 @@ from app.services import calendar as cal
 from app.services.auth import is_user_allowed
 from app.services.group_admin import GroupAdminError, set_group_admin
 from app.services.holidays import lu_public_holidays
-from app.services.locks import LockError, apply_lock_form, lock_rows
+from app.services.locks import LockError, apply_lock_form, lock_rows, locked_months
 from app.services.palettes import PaletteError, change_palette, palette_of, set_doctor_color
+from app.services.planning import archive_generation
 from app.services.presence import hub
 from app.services.security import verify_password
 from app.templating import is_htmx, render, set_flash, trigger_toast
@@ -135,15 +136,10 @@ async def _clinic_page(
     status_code: int = 200,
 ) -> Response:
     users = await users_repo.list_users(db, clinic_id=clinic.id)
-    active = await db.scalar(
-        select(Generation).where(
-            Generation.clinic_id == clinic.id, Generation.archived_at.is_(None)
-        )
-    )
     context: dict[str, Any] = {
         "clinic": clinic,
         "users": users,
-        "active": active,
+        "actives": await scheduling_repo.active_generations(db, clinic.id),
         "lock_rows": await lock_rows(db, clinic.id, cal.today_local()),
         "lock_action": f"/admin/clinic/{clinic.id}/verrous",
         "appearance": await appearance_context(
@@ -452,8 +448,14 @@ async def generations_recent(request: Request, db: DbSession) -> Response:
 
 @router.get("/clinic/{clinic_id}/generations")
 async def clinic_generations(request: Request, clinic_id: uuid.UUID, db: DbSession) -> Response:
-    """Every generation of a clinic, with archive / delete actions."""
+    """Every generation of a clinic, with archive / delete actions; the active ones are
+    listed first with the locked months they hold."""
     clinic = await _clinic_or_404(db, clinic_id)
+    locked = await locked_months(db, clinic.id)
+    active_rows = []
+    for generation in await scheduling_repo.active_generations(db, clinic.id):
+        held = {d.replace(day=1) for d in await scheduling_repo.assignment_dates(db, generation.id)}
+        active_rows.append((generation, sorted(held & locked)))
     rows = (
         await db.execute(
             select(Generation, Clinic, User)
@@ -463,7 +465,11 @@ async def clinic_generations(request: Request, clinic_id: uuid.UUID, db: DbSessi
             .order_by(Generation.generated_at.desc())
         )
     ).all()
-    return render(request, "admin/generations.html", {"rows": rows, "clinic": clinic})
+    return render(
+        request,
+        "admin/generations.html",
+        {"rows": rows, "clinic": clinic, "active_rows": active_rows},
+    )
 
 
 async def _generation_or_404(db: DbSession, generation_id: uuid.UUID) -> Generation:
@@ -484,27 +490,18 @@ def _period(generation: Generation) -> dict[str, str]:
 async def generation_archive(
     request: Request, generation_id: uuid.UUID, db: DbSession, auth: SuperadminAuth
 ) -> Response:
-    """Archive the active generation: the clinic is left without an active planning."""
+    """Archive one active generation (its days are shown read-only as history). There is
+    no way back: its days may later be taken by another active generation."""
     generation = await _generation_or_404(db, generation_id)
     target = f"/admin/clinic/{generation.clinic_id}/generations"
     if not generation.active:
         return _redirect(target, "Cette génération est déjà archivée.", "error")
-    generation.is_active = False
-    generation.archived_at = datetime.now(UTC)
-    await drafts_repo.clear_drafts(db, generation.clinic_id)
-    audit.record(
-        db,
-        "generation_archived",
-        request=request,
-        user_id=auth.real_user.id,
-        clinic_id=generation.clinic_id,
-        target_type="generation",
-        target_id=generation.id,
-        meta=_period(generation),
+    await archive_generation(
+        db, generation, reason="manual", actor_id=auth.real_user.id, request=request
     )
     await db.commit()
     hub.publish(generation.clinic_id, "draft_cleared", {"reason": "archived", "changed": 0})
-    return _redirect(target, "Génération archivée : le groupe n'a plus de planification active.")
+    return _redirect(target, "Génération archivée (définitivement).")
 
 
 @router.post("/generations/{generation_id}/delete")
