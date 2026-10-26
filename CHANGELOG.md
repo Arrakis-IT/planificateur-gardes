@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/). Images: `ghcr.io/arrakis-it/planificateur-gardes:<version>`.
 
+## [0.13.0] - 2026-10-26
+
+### Changed
+- **Several active generations per clinic.** A generation is active while `archived_at` is
+  NULL (`is_active` is deprecated: no longer read, still written on archive; migration 0014
+  drops the one-active-per-clinic unique index). Two active generations never hold the
+  same day.
+- Generating a period that meets active generations asks first (confirmation dialog, live
+  notice on the Générer page, `GET /generer/chevauchement`): days in locked months stay
+  where they are; the other days are either **transferred** as they are (manual edits,
+  desiderata flags, draft cells) or **recalculated** (the old assignments go to an archived
+  generation, compared in the changelog email). Overlapped generations are fitted to their
+  remaining days, or archived when none is left.
+- Calendars and the iCal feed show the union of the active generations, and the latest
+  archived assignment (read-only) for the days none of them holds.
+- Results, statistics and PDF are per generation (`?generation=`, default: the one covering
+  today); statistics count only the generation's own days. Saving the shared draft emails
+  one PDF per changed generation.
+- Month locks stay clinic-wide: lockable while an active generation covers the month,
+  released when none does any more.
+
+### Added
+- Expired generations (last day past) are archived at startup, every night and before each
+  new generation; their days remain visible as history.
+- Admin: active generations with the locked months they hold; "Archiver" asks for
+  confirmation (no unarchiving).
+
+### Security
+- Docker image: pip 26.2.2 (its vendored certifi 2026.10.19 drops the compromised emSign
+  ECC Root CA - G3 chain) in the build stages; the production image ships no pip.
+
 ## [0.12.1] - 2026-10-22
 
 ### Security
@@ -152,6 +183,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - First release.
 
+[0.13.0]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.3...v0.11.4

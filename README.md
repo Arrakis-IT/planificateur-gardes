@@ -105,6 +105,16 @@ available — this weighs more than avoiding the day before / after — and, whe
 one, the doctor with the fewest broken desiderata in the period wins. Without desiderata the
 output is the original one. Forced days are flagged and listed in the results.
 
+### Generations / Générations
+
+A clinic can have **several active generations** (`archived_at IS NULL`), never two holding
+the same day: calendars show their union. A new period that meets active generations
+leaves the days of locked months where they are and, at the user's choice, transfers the
+other days as they are or recalculates them (the replaced assignments are archived).
+Overlapped generations shrink to their remaining days and are archived when empty;
+generations whose last day is past are archived every night. Archived days stay visible
+read-only; an archived generation is never reactivated.
+
 The algorithm balances weekend pairs, on-site days and total duties. Luxembourg public holidays
 (official + clinic-specific) are assigned as single days and count as a Sunday in the
 statistics. Details: [module docstring](app/services/scheduler.py).
