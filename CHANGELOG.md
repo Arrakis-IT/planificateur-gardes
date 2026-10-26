@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/). Images: `ghcr.io/arrakis-it/planificateur-gardes:<version>`.
 
+## [0.13.1] - 2026-10-26
+
+### Fixed
+- Generating over active generations without choosing an overlap mode answered 500
+  instead of the 409 confirmation dialog for a superadmin acting as a doctor: the refused
+  run is now undone with a savepoint, not a full rollback that expired the logged-in user.
+  The dialog shows the period of each overlapped generation.
+- Pages rendered after a session rollback no longer crash on expired user / clinic objects
+  (MissingGreenlet); unhandled exceptions render the 500 error page.
+
 ## [0.13.0] - 2026-10-26
 
 ### Changed
@@ -183,6 +193,7 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - First release.
 
+[0.13.1]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/Arrakis-IT/planificateur-gardes/compare/v0.11.4...v0.12.0
