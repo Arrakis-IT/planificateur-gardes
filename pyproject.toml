@@ -44,7 +44,7 @@ ruff = "~0.17"
 mypy = "^1.20"
 pre-commit = "^4.6"
 types-python-dateutil = "^2.9"
-pypdf = "^6.20"
+pypdf = "^6.21"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
