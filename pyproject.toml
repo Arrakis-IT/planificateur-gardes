@@ -37,14 +37,14 @@ sse-starlette = "^3.5"
 sentry-sdk = { version = "^2.71", extras = ["fastapi"] }
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^9.0.3"
+pytest = "^9.2.0"
 pytest-asyncio = "^1.4"
 pytest-cov = "^7.1"
 ruff = "~0.17"
-mypy = "^1.20"
-pre-commit = "^4.6"
+mypy = "^2.4"
+pre-commit = "^4.7"
 types-python-dateutil = "^2.9"
-pypdf = "^6.20"
+pypdf = "^6.21"
 
 [build-system]
 requires = ["poetry-core>=2.0"]
